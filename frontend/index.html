@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lunatic Mobile Security</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%234f8cff' d='M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Z'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <svg viewBox="0 0 24 24" class="brand-mark" aria-hidden="true">
+          <path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Z" fill="currentColor" opacity=".18"/>
+          <path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Z" fill="none" stroke="currentColor" stroke-width="1.6"/>
+          <path d="m8.5 12 2.5 2.5 4.5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div>
+          <div class="brand-name">LUNATIC</div>
+          <div class="brand-sub">Mobile Security</div>
+        </div>
+      </div>
+      <nav class="nav" aria-label="Navigation principale">
+        <a href="#/dashboard" class="nav-item" data-view="dashboard">
+          <svg viewBox="0 0 24 24"><path d="M4 13h7V4H4v9Zm0 7h7v-5H4v5Zm9 0h7v-9h-7v9Zm0-16v5h7V4h-7Z"/></svg>
+          Dashboard
+        </a>
+        <a href="#/logs" class="nav-item" data-view="logs">
+          <svg viewBox="0 0 24 24"><path d="M5 4h14v2H5V4Zm0 5h14v2H5V9Zm0 5h9v2H5v-2Zm0 5h14v2H5v-2Z"/></svg>
+          Logs
+        </a>
+        <a href="#/settings" class="nav-item" data-view="settings">
+          <svg viewBox="0 0 24 24"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-1.7-1l-.4-2.6h-4l-.4 2.6a7 7 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 1.7 1l.4 2.6h4l.4-2.6a7 7 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6ZM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z"/></svg>
+          Paramètres
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <span class="status-dot" id="backend-dot"></span>
+        <span id="backend-status">Connexion…</span>
+        <span class="version" id="app-version"></span>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="icon-btn menu-toggle" id="menu-toggle" aria-label="Menu">
+          <svg viewBox="0 0 24 24"><path d="M3 6h18v2H3V6Zm0 5h18v2H3v-2Zm0 5h18v2H3v-2Z"/></svg>
+        </button>
+        <h1 class="page-title" id="page-title">Dashboard</h1>
+        <div class="topbar-right" id="host-chip"></div>
+      </header>
+
+      <!-- DASHBOARD -->
+      <section class="view" id="view-dashboard" hidden>
+        <div class="hero card">
+          <div class="hero-status" id="env-overall">
+            <div class="ring" id="env-ring"><span id="env-ring-label">…</span></div>
+          </div>
+          <div class="hero-text">
+            <h2>Environnement de travail</h2>
+            <p class="muted" id="env-summary">Analyse de l'ordinateur en cours…</p>
+            <div class="hero-actions">
+              <button class="btn btn-primary" id="env-refresh">
+                <svg viewBox="0 0 24 24"><path d="M17.7 6.3A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.8-4.2L13 11h7V4l-2.3 2.3Z"/></svg>
+                Relancer le diagnostic
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid stats" id="tool-cards"></div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Vérifications</h3>
+            <span class="muted small" id="env-updated"></span>
+          </div>
+          <ul class="check-list" id="env-checks"></ul>
+        </div>
+      </section>
+
+      <!-- LOGS -->
+      <section class="view" id="view-logs" hidden>
+        <div class="card">
+          <div class="card-header">
+            <h3>Journal d'activité en temps réel</h3>
+            <div class="toolbar">
+              <label class="select-label">Niveau
+                <select id="log-level">
+                  <option value="">Tous</option>
+                  <option value="INFO">INFO+</option>
+                  <option value="WARN">WARN+</option>
+                  <option value="ERROR">ERROR+</option>
+                </select>
+              </label>
+              <button class="btn" id="log-pause" aria-pressed="false">Pause</button>
+              <button class="btn" id="log-clear">Effacer l'affichage</button>
+            </div>
+          </div>
+          <div class="log-view" id="log-view" role="log" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <!-- SETTINGS -->
+      <section class="view" id="view-settings" hidden>
+        <div class="grid two">
+          <div class="card">
+            <div class="card-header"><h3>Configuration</h3></div>
+            <p class="muted small">Modifiable via les variables d'environnement <code>LMS_*</code> ou le fichier <code>.env</code> (voir <code>.env.example</code>), puis redémarrage.</p>
+            <dl class="kv" id="settings-list"></dl>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <h3>Journal d'audit</h3>
+              <button class="btn" id="audit-verify">Vérifier l'intégrité</button>
+            </div>
+            <p class="muted small">Chaque opération sensible est enregistrée dans une chaîne de hachage SHA-256 : toute modification a posteriori est détectée.</p>
+            <div id="audit-result"></div>
+            <div class="table-wrap">
+              <table class="table">
+                <thead><tr><th>Date (UTC)</th><th>Niveau</th><th>Évènement</th></tr></thead>
+                <tbody id="audit-events"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toasts" id="toasts" aria-live="assertive"></div>
+  <script src="js/app.js"></script>
+</body>
+</html>
