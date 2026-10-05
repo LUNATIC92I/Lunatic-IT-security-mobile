@@ -239,8 +239,26 @@ const LMS = (() => {
     }
   }
 
+  async function loadScoreCard() {
+    try {
+      const report = await api.get("/api/security/report");
+      const status = { excellent: "ok", good: "ok", average: "warn", weak: "warn", critical: "fail" }[report.grade] || "info";
+      $("#score-card-badge").className = "badge " + status;
+      $("#score-card-badge").textContent = report.grade_label;
+      $("#score-card-value").textContent = report.score + " / 100";
+      const counts = report.severity_counts;
+      $("#score-card-sub").textContent = (report.model || "Appareil") + " · " + (counts.critical + counts.high)
+        + " problème(s) critique(s) ou élevé(s) · " + new Date(report.created_at).toLocaleString();
+    } catch (error) {
+      if (!(error instanceof ApiError && error.payload.code === "report_not_found")) {
+        $("#score-card-sub").textContent = error.payload ? error.payload.message : String(error);
+      }
+    }
+  }
+
   async function loadEnvironment() {
     loadDeviceCard();
+    loadScoreCard();
     const button = $("#env-refresh");
     const ring = $("#env-ring");
     button.disabled = true;

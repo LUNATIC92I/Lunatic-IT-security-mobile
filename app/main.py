@@ -35,11 +35,13 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from app import APP_NAME, __version__
 from app.api.device_routes import router as device_router
 from app.api.routes import router as core_router
+from app.api.security_routes import router as security_router
 from app.config import FRONTEND_DIR, Settings, get_settings
 from app.core.audit_logger import AuditLogger
 from app.core.device_manager import DeviceManager
 from app.core.errors import CSRFError, InvalidInputError, LMSError
 from app.core.platform_tools import CommandRunner
+from app.core.security_scanner import SecurityScanner
 from app.logging_config import configure_logging, get_logger
 
 log = get_logger("main")
@@ -68,6 +70,7 @@ def create_app(settings: Settings | None = None, *, console_logging: bool = True
     app.state.runner = CommandRunner(settings)
     app.state.audit = AuditLogger(settings.audit_log_path)
     app.state.devices = DeviceManager(app.state.runner, app.state.audit)
+    app.state.scanner = SecurityScanner(settings, app.state.devices, app.state.audit)
 
     allowed_hosts = ["127.0.0.1", "localhost", "[::1]", "::1"]
     allowed_origins = {f"http://{host}:{settings.port}" for host in ("127.0.0.1", "localhost", "[::1]")}
@@ -114,6 +117,7 @@ def create_app(settings: Settings | None = None, *, console_logging: bool = True
 
     app.include_router(core_router)
     app.include_router(device_router)
+    app.include_router(security_router)
 
     if FRONTEND_DIR.is_dir():
         app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

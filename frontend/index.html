@@ -31,6 +31,34 @@
           <svg viewBox="0 0 24 24"><path d="M16 1H8a3 3 0 0 0-3 3v16a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3V4a3 3 0 0 0-3-3Zm1 19a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v16Zm-5-2.5a1.25 1.25 0 1 0 0-2.5 1.25 1.25 0 0 0 0 2.5Z"/></svg>
           Appareils
         </a>
+        <a href="#/scan" class="nav-item" data-view="scan">
+          <svg viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Zm-1 14-4-4 1.4-1.4L11 13.2l5.6-5.6L18 9l-7 7Z"/></svg>
+          Security Scan
+        </a>
+        <a href="#/applications" class="nav-item" data-view="applications">
+          <svg viewBox="0 0 24 24"><path d="M4 4h6v6H4V4Zm10 0h6v6h-6V4ZM4 14h6v6H4v-6Zm10 0h6v6h-6v-6Z"/></svg>
+          Applications
+        </a>
+        <a href="#/permissions" class="nav-item" data-view="permissions">
+          <svg viewBox="0 0 24 24"><path d="M12 1a5 5 0 0 0-5 5v3H5v14h14V9h-2V6a5 5 0 0 0-5-5Zm-3 5a3 3 0 1 1 6 0v3H9V6Zm3 7a2 2 0 0 1 1 3.7V19h-2v-2.3A2 2 0 0 1 12 13Z"/></svg>
+          Permissions
+        </a>
+        <a href="#/network" class="nav-item" data-view="network">
+          <svg viewBox="0 0 24 24"><path d="M12 3C7 3 2.7 5 0 8l12 13L24 8c-2.7-3-7-5-12-5Zm0 3c3.3 0 6.3 1.1 8.4 3L12 18 3.6 9C5.7 7.1 8.7 6 12 6Z"/></svg>
+          Réseau
+        </a>
+        <a href="#/encryption" class="nav-item" data-view="encryption">
+          <svg viewBox="0 0 24 24"><path d="M18 8h-1V6a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2ZM9 6a3 3 0 1 1 6 0v2H9V6Zm3 11a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z"/></svg>
+          Chiffrement
+        </a>
+        <a href="#/bootloader" class="nav-item" data-view="bootloader">
+          <svg viewBox="0 0 24 24"><path d="M13 3h-2v10h2V3Zm4.8 2.2-1.4 1.4A7 7 0 1 1 7.6 6.6L6.2 5.2A9 9 0 1 0 17.8 5.2Z"/></svg>
+          Bootloader
+        </a>
+        <a href="#/updates" class="nav-item" data-view="updates">
+          <svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8Zm-1 4v5l4.3 2.5.7-1.2-3.5-2.1V8H11Z"/></svg>
+          Mises à jour
+        </a>
         <a href="#/logs" class="nav-item" data-view="logs">
           <svg viewBox="0 0 24 24"><path d="M5 4h14v2H5V4Zm0 5h14v2H5V9Zm0 5h9v2H5v-2Zm0 5h14v2H5v-2Z"/></svg>
           Logs
@@ -84,6 +112,15 @@
             <div class="muted small" id="device-card-sub"></div>
             <a class="link small" href="#/devices">Ouvrir la page Appareils →</a>
           </div>
+          <div class="card stat-card" id="score-card">
+            <div class="stat-top">
+              <span class="stat-label">Score de sécurité</span>
+              <span class="badge neutral" id="score-card-badge">Aucune analyse</span>
+            </div>
+            <div class="stat-value" id="score-card-value">—</div>
+            <div class="muted small" id="score-card-sub">Aucune analyse réalisée pendant cette session.</div>
+            <a class="link small" href="#/scan">Ouvrir Security Scan →</a>
+          </div>
           <div class="contents" id="tool-cards"></div>
         </div>
 
@@ -116,6 +153,105 @@
         </div>
         <div id="device-details"></div>
       </section>
+
+      <!-- SECURITY SCAN -->
+      <section class="view" id="view-scan" hidden>
+        <div class="card score-hero">
+          <div class="score-ring" id="score-ring" role="img" aria-label="Score de sécurité">
+            <div class="score-value" id="score-value">—</div>
+            <div class="score-max">/ 100</div>
+          </div>
+          <div class="score-text">
+            <div class="score-grade"><span class="badge neutral" id="score-grade">Aucune analyse</span></div>
+            <h2 id="score-device">Analyse de sécurité</h2>
+            <p class="muted" id="score-meta">Lancez une analyse pour évaluer la sécurité du téléphone connecté. Aucune modification n'est effectuée sur l'appareil.</p>
+            <div class="hero-actions">
+              <button class="btn btn-primary" id="scan-start">
+                <svg viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Z"/></svg>
+                Lancer l'analyse
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="card" id="scan-progress" hidden>
+          <div class="card-header"><h3>Analyse en cours</h3><span class="muted small" id="scan-elapsed"></span></div>
+          <div class="progress"><span id="scan-bar"></span></div>
+          <p class="scan-step"><span class="pulse-dot"></span><span id="scan-step">Préparation…</span></p>
+          <ul class="steps-done" id="scan-steps"></ul>
+        </div>
+        <div id="scan-error"></div>
+        <div id="scan-results" hidden>
+          <div class="grid sev-tiles" id="severity-tiles"></div>
+          <div class="grid two">
+            <div class="card">
+              <div class="card-header"><h3>Score par catégorie</h3><span class="muted small">100 = aucun problème détecté</span></div>
+              <div class="hbars" id="category-bars"></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><h3>Limites de l'analyse</h3></div>
+              <ul class="notes" id="scan-limitations"></ul>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <h3>Recommandations</h3>
+              <div class="toolbar" id="finding-filters"></div>
+            </div>
+            <div class="findings" id="findings"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- APPLICATIONS -->
+      <section class="view" id="view-applications" hidden>
+        <div id="apps-findings"></div>
+        <div class="card">
+          <div class="card-header">
+            <h3 id="apps-title">Applications installées</h3>
+            <div class="toolbar">
+              <input type="search" class="input" id="apps-search" placeholder="Rechercher un paquet…" aria-label="Rechercher une application">
+              <button class="btn" id="apps-refresh">Actualiser</button>
+            </div>
+          </div>
+          <div class="toolbar chips" id="apps-filters"></div>
+          <div class="table-wrap">
+            <table class="table" id="apps-table">
+              <thead><tr><th>Application</th><th>Source</th><th>Installée le</th><th>Permissions sensibles</th><th>Risque</th></tr></thead>
+              <tbody id="apps-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- PERMISSIONS -->
+      <section class="view" id="view-permissions" hidden>
+        <div id="perm-findings"></div>
+        <div class="grid two">
+          <div class="card">
+            <div class="card-header"><h3>Applications tierces par permission accordée</h3><button class="btn" id="perm-refresh">Actualiser</button></div>
+            <div class="hbars" id="perm-bars"></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h3>Accès spéciaux</h3></div>
+            <div id="perm-special"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3>Applications tierces disposant d'accès sensibles</h3></div>
+          <div class="table-wrap">
+            <table class="table">
+              <thead><tr><th>Application</th><th>Permissions et accès</th><th>Risque contextuel</th></tr></thead>
+              <tbody id="perm-apps"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- NETWORK / ENCRYPTION / BOOTLOADER / UPDATES -->
+      <section class="view" id="view-network" hidden><div id="network-content"></div></section>
+      <section class="view" id="view-encryption" hidden><div id="encryption-content"></div></section>
+      <section class="view" id="view-bootloader" hidden><div id="bootloader-content"></div></section>
+      <section class="view" id="view-updates" hidden><div id="updates-content"></div></section>
 
       <!-- LOGS -->
       <section class="view" id="view-logs" hidden>
@@ -168,7 +304,9 @@
 
   <div class="toasts" id="toasts" aria-live="assertive"></div>
   <div class="modal-backdrop" id="modal" hidden></div>
+  <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
   <script src="js/app.js"></script>
   <script src="js/devices.js"></script>
+  <script src="js/security.js"></script>
 </body>
 </html>

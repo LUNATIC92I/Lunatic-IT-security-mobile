@@ -27,7 +27,17 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from tests.fakes.profiles import BATTERY_OUTPUT, DF_OUTPUT, FASTBOOT_GETVAR, getprop_output  # noqa: E402
+from tests.fakes.profiles import (  # noqa: E402
+    BATTERY_OUTPUT,
+    CONNECTIVITY,
+    DF_OUTPUT,
+    FASTBOOT_GETVAR,
+    SCAN_DATA,
+    device_policy,
+    dumpsys_packages,
+    getprop_output,
+    wifi_status,
+)
 
 
 def _record_call(tool: str, args: list[str]) -> None:
@@ -59,6 +69,15 @@ def _adb_device_command(config: dict, serial: str, args: list[str]) -> int:
     if any(word in config.get("hang_on", []) for word in args):
         time.sleep(30)
     profile = device.get("profile", "pixel8pro_stock")
+    scan = SCAN_DATA.get(profile, SCAN_DATA["pixel8pro_stock"])
+    if device.get("disconnect_after"):
+        # Simulate a cable unplugged mid-scan: the device vanishes after N commands.
+        counter = Path(os.environ["LMS_FAKE_DEVICES"]).with_suffix(".count")
+        count = int(counter.read_text()) + 1 if counter.exists() else 1
+        counter.write_text(str(count))
+        if count > device["disconnect_after"]:
+            sys.stderr.write(f"adb: device '{serial}' not found\n")
+            return 1
     if args == ["get-state"]:
         sys.stdout.write("device\n")
     elif args == ["shell", "getprop"]:
@@ -73,6 +92,34 @@ def _adb_device_command(config: dict, serial: str, args: list[str]) -> int:
         sys.stdout.write(DF_OUTPUT)
     elif args == ["shell", "dumpsys", "battery"]:
         sys.stdout.write(BATTERY_OUTPUT)
+    elif args[:3] == ["shell", "settings", "list"] and len(args) == 4:
+        values = scan.get(args[3], {})
+        sys.stdout.write("".join(f"{k}={v}\n" for k, v in values.items()))
+    elif args == ["shell", "pm", "list", "packages", "-3"]:
+        sys.stdout.write("".join(f"package:{a['name']}\n" for a in scan.get("apps", []) if not a["system"]))
+    elif args == ["shell", "pm", "list", "packages", "-d"]:
+        sys.stdout.write("")
+    elif args == ["shell", "dumpsys", "package", "packages"]:
+        sys.stdout.write(dumpsys_packages(scan.get("apps", [])))
+    elif args == ["shell", "dumpsys", "device_policy"]:
+        sys.stdout.write(device_policy(scan.get("admins", []), scan.get("owner")))
+    elif args == ["shell", "appops", "query-op", "REQUEST_INSTALL_PACKAGES", "allow"]:
+        allowed = scan.get("install_allowed", [])
+        sys.stdout.write("".join(f"{p}\n" for p in allowed) if allowed else "No operations.\n")
+    elif args == ["shell", "cmd", "wifi", "status"]:
+        if device.get("no_cmd_wifi"):
+            sys.stdout.write("cmd: Can't find service: wifi\n")
+            return 20
+        sys.stdout.write(wifi_status(scan.get("wifi_security")))
+    elif args == ["shell", "dumpsys", "connectivity"]:
+        sys.stdout.write(CONNECTIVITY)
+    elif args == ["shell", "getenforce"]:
+        sys.stdout.write(scan.get("selinux", "Enforcing") + "\n")
+    elif args == ["shell", "which", "su"]:
+        if scan.get("su"):
+            sys.stdout.write(scan["su"] + "\n")
+            return 0
+        return 1
     else:
         sys.stderr.write(f"adb: unsupported fake command {args}\n")
         return 1

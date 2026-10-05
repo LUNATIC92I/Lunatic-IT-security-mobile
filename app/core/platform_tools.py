@@ -73,6 +73,7 @@ class CommandSpec:
     requires_serial: bool = False
     destructive: bool = False
     timeout: float | None = None
+    nonzero_is_normal: bool = False  # e.g. "which su" exits 1 when su is absent
     description: str = ""
 
     def build(self, serial: str | None, params: Mapping[str, str] | None) -> list[str]:
@@ -152,6 +153,88 @@ COMMAND_WHITELIST: dict[str, CommandSpec] = dict(
             requires_serial=True,
             timeout=15,
             description="État de la batterie",
+        ),
+        # --- read-only security audit (phase 3) ---
+        _spec(
+            "adb.settings_list",
+            Tool.ADB,
+            ("shell", "settings", "list", SETTINGS_NAMESPACE),
+            requires_serial=True,
+            timeout=15,
+            description="Lister les paramètres Android d'un espace",
+        ),
+        _spec(
+            "adb.pm_list_third_party",
+            Tool.ADB,
+            ("shell", "pm", "list", "packages", "-3"),
+            requires_serial=True,
+            timeout=30,
+            description="Applications tierces",
+        ),
+        _spec(
+            "adb.pm_list_disabled",
+            Tool.ADB,
+            ("shell", "pm", "list", "packages", "-d"),
+            requires_serial=True,
+            timeout=30,
+            description="Applications désactivées",
+        ),
+        _spec(
+            "adb.dumpsys_packages",
+            Tool.ADB,
+            ("shell", "dumpsys", "package", "packages"),
+            requires_serial=True,
+            timeout=120,
+            description="Détail des paquets et permissions",
+        ),
+        _spec(
+            "adb.dumpsys_device_policy",
+            Tool.ADB,
+            ("shell", "dumpsys", "device_policy"),
+            requires_serial=True,
+            timeout=30,
+            description="Administrateurs de l'appareil",
+        ),
+        _spec(
+            "adb.appops_install_allowed",
+            Tool.ADB,
+            ("shell", "appops", "query-op", "REQUEST_INSTALL_PACKAGES", "allow"),
+            requires_serial=True,
+            timeout=30,
+            description="Applications autorisées à installer des applications",
+        ),
+        _spec(
+            "adb.dumpsys_connectivity",
+            Tool.ADB,
+            ("shell", "dumpsys", "connectivity"),
+            requires_serial=True,
+            timeout=30,
+            description="État de la connectivité",
+        ),
+        _spec(
+            "adb.wifi_status",
+            Tool.ADB,
+            ("shell", "cmd", "wifi", "status"),
+            requires_serial=True,
+            timeout=15,
+            description="État du Wi-Fi",
+        ),
+        _spec(
+            "adb.getenforce",
+            Tool.ADB,
+            ("shell", "getenforce"),
+            requires_serial=True,
+            timeout=10,
+            description="Mode SELinux",
+        ),
+        _spec(
+            "adb.which_su",
+            Tool.ADB,
+            ("shell", "which", "su"),
+            requires_serial=True,
+            timeout=10,
+            description="Présence d'un binaire su",
+            nonzero_is_normal=True,
         ),
         _spec("fastboot.version", Tool.FASTBOOT, ("--version",), timeout=15, description="Version de fastboot"),
         _spec("fastboot.devices", Tool.FASTBOOT, ("devices",), timeout=15, description="Lister les appareils Fastboot"),
@@ -319,7 +402,7 @@ class CommandRunner:
             duration=duration,
             truncated=truncated_out or truncated_err,
         )
-        level = log.debug if result.ok else log.warning
+        level = log.debug if result.ok or spec.nonzero_is_normal else log.warning
         level("%s exited with %s in %.2fs", " ".join(argv_display), result.returncode, duration)
         if check and not result.ok:
             failure = redact((stderr or stdout).strip()[:2000])

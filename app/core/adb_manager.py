@@ -45,6 +45,10 @@ KEPT_PROPERTIES = frozenset(
         "ro.bootloader",
         "gsm.version.baseband",
         "ro.boot.slot_suffix",
+        "ro.vendor.build.security_patch",
+        "ro.debuggable",
+        "ro.secure",
+        "ro.adb.secure",
     }
 )
 

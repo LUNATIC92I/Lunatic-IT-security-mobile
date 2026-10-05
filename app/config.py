@@ -155,6 +155,10 @@ class Settings(BaseSettings):
         return self.resolved_data_dir / "backups"
 
     @property
+    def reports_dir(self) -> Path:
+        return self.resolved_data_dir / "reports"
+
+    @property
     def temp_dir(self) -> Path:
         return self.resolved_data_dir / "tmp"
 
@@ -172,7 +176,14 @@ class Settings(BaseSettings):
 
     def ensure_directories(self) -> None:
         """Create the data directories with owner-only permissions."""
-        for directory in (self.resolved_data_dir, self.logs_dir, self.downloads_dir, self.backups_dir, self.temp_dir):
+        for directory in (
+            self.resolved_data_dir,
+            self.logs_dir,
+            self.downloads_dir,
+            self.backups_dir,
+            self.reports_dir,
+            self.temp_dir,
+        ):
             directory.mkdir(parents=True, exist_ok=True)
             if self.host_os is not HostOS.WINDOWS:
                 os.chmod(directory, 0o700)

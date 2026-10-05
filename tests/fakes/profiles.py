@@ -121,3 +121,242 @@ all: Done!
 
 def getprop_output(profile: str) -> str:
     return "".join(f"[{key}]: [{value}]\n" for key, value in sorted(PROFILES[profile].items()))
+
+
+# --------------------------------------------------------------------------
+# Security audit outputs (phase 3)
+# --------------------------------------------------------------------------
+PROFILES["grapheneos"] = {
+    **PROFILES["pixel8pro_stock"],
+    "ro.build.version.security_patch": "2026-09-05",
+    "ro.vendor.build.security_patch": "2026-09-05",
+    "ro.boot.verifiedbootstate": "yellow",
+    "ro.build.version.release": "16",
+    "ro.build.version.release_or_codename": "16",
+    "ro.build.version.sdk": "36",
+}
+PROFILES["samsung_rooted"] = {
+    **PROFILES["samsung_old"],
+    "ro.boot.verifiedbootstate": "orange",
+    "ro.boot.flash.locked": "0",
+    "ro.build.tags": "test-keys",
+    "ro.crypto.state": "unencrypted",
+}
+
+
+def _app(
+    name,
+    installer="com.android.vending",
+    system=False,
+    runtime=(),
+    install=(),
+    first="2024-02-10 09:00:00",
+    version="1.0",
+    user0_installed=True,
+):
+    return {
+        "name": name,
+        "installer": installer,
+        "system": system,
+        "runtime": list(runtime),
+        "install": list(install),
+        "first": first,
+        "version": version,
+        "installed": user0_installed,
+    }
+
+
+def recent_date(days: int = 3) -> str:
+    from datetime import datetime, timedelta
+
+    return (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+
+
+P = "android.permission."
+STANDARD_APPS = [
+    _app("com.android.settings", installer=None, system=True, install=[P + "INTERNET", P + "WRITE_SECURE_SETTINGS"]),
+    _app(
+        "com.google.android.apps.messaging",
+        installer=None,
+        system=True,
+        runtime=[P + "READ_SMS", P + "SEND_SMS", P + "RECEIVE_SMS", P + "READ_CONTACTS"],
+    ),
+    _app("com.google.android.gms", installer=None, system=True, runtime=[P + "ACCESS_FINE_LOCATION", P + "CAMERA"]),
+    _app("com.android.chrome", installer="com.android.vending", system=True, runtime=[P + "CAMERA"]),
+    _app("com.android.uninstalled", installer=None, system=True, user0_installed=False),
+    _app(
+        "com.whatsapp",
+        runtime=[P + "CAMERA", P + "RECORD_AUDIO", P + "READ_CONTACTS"],
+        install=[P + "INTERNET"],
+        version="2.26.18.7",
+    ),
+    _app("org.mozilla.firefox", runtime=[P + "CAMERA"], install=[P + "INTERNET", P + "REQUEST_INSTALL_PACKAGES"]),
+]
+SUSPICIOUS_APP = _app(
+    "com.example.flashlight",
+    installer="com.google.android.packageinstaller",
+    runtime=[
+        P + "CAMERA",
+        P + "RECORD_AUDIO",
+        P + "ACCESS_FINE_LOCATION",
+        P + "ACCESS_BACKGROUND_LOCATION",
+        P + "READ_SMS",
+        P + "RECEIVE_SMS",
+        P + "READ_CONTACTS",
+        P + "READ_CALL_LOG",
+    ],
+    install=[P + "INTERNET", P + "RECEIVE_BOOT_COMPLETED"],
+    first="RECENT",
+    version="3.1",
+)
+
+SCAN_DATA = {
+    "pixel8pro_stock": {
+        "apps": STANDARD_APPS + [SUSPICIOUS_APP],
+        "global": {
+            "adb_enabled": "1",
+            "development_settings_enabled": "1",
+            "private_dns_mode": "off",
+            "http_proxy": "10.0.0.5:8080",
+            "bluetooth_on": "1",
+            "airplane_mode_on": "0",
+            "device_name": "Pixel de Jean",
+            "verifier_verify_adb_installs": "1",
+        },
+        "secure": {
+            "enabled_accessibility_services": "com.example.flashlight/com.example.flashlight.Svc",
+            "accessibility_enabled": "1",
+            "enabled_notification_listeners": "com.example.flashlight/.Listener:com.google.android.gms/.Listener",
+            "sms_default_application": "com.google.android.apps.messaging",
+            "android_id": "abcdef0123456789",
+            "bluetooth_address": "AA:BB:CC:DD:EE:FF",
+        },
+        "admins": [
+            "com.google.android.gms/.mdm.receivers.MdmDeviceAdminReceiver",
+            "com.example.flashlight/.AdminReceiver",
+        ],
+        "owner": None,
+        "install_allowed": ["org.mozilla.firefox", "com.example.flashlight"],
+        "wifi_security": 0,
+        "selinux": "Enforcing",
+        "su": None,
+    },
+    "grapheneos": {
+        "apps": STANDARD_APPS[:4]
+        + [_app("com.whatsapp", installer="app.grapheneos.apps", runtime=[P + "CAMERA", P + "RECORD_AUDIO"])],
+        "global": {
+            "adb_enabled": "1",
+            "development_settings_enabled": "1",
+            "private_dns_mode": "hostname",
+            "private_dns_specifier": "dns.quad9.net",
+            "http_proxy": ":0",
+        },
+        "secure": {
+            "enabled_accessibility_services": "null",
+            "sms_default_application": "com.google.android.apps.messaging",
+        },
+        "admins": [],
+        "owner": None,
+        "install_allowed": [],
+        "wifi_security": 4,
+        "selinux": "Enforcing",
+        "su": None,
+    },
+    "samsung_rooted": {
+        "apps": STANDARD_APPS,
+        "global": {
+            "adb_enabled": "1",
+            "development_settings_enabled": "1",
+            "adb_wifi_enabled": "1",
+            "verifier_verify_adb_installs": "0",
+        },
+        "secure": {"install_non_market_apps": "1"},
+        "admins": [],
+        "owner": "com.corp.mdm",
+        "install_allowed": [],
+        "wifi_security": None,
+        "selinux": "Permissive",
+        "su": "/system/xbin/su",
+    },
+}
+
+
+def dumpsys_packages(apps: list[dict]) -> str:
+    lines = ["Database versions:", "  Internal:", "    sdkVersion=35", "", "Packages:"]
+    for app in apps:
+        first = recent_date() if app["first"] == "RECENT" else app["first"]
+        flags = "SYSTEM HAS_CODE" if app["system"] else "HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP"
+        lines += [
+            f"  Package [{app['name']}] (1a2b3c):",
+            "    userId=10123",
+            f"    pkg=Package{{4d5e6f {app['name']}}}",
+            f"    codePath=/data/app/~~x==/{app['name']}-y==",
+            "    versionCode=1234 minSdk=26 targetSdk=34",
+            f"    versionName={app['version']}",
+            f"    flags=[ {flags} ]",
+            "    privateFlags=[ PRIVATE_FLAG_ACTIVITIES_RESIZE_MODE_RESIZEABLE ]",
+            f"    timeStamp={first}",
+            f"    lastUpdateTime={first}",
+            f"    installerPackageName={app['installer'] or 'null'}",
+            "    packageSource=0",
+            f"    pkgFlags=[ {flags} ]",
+            "    requested permissions:",
+        ]
+        lines += [f"      {perm}" for perm in app["runtime"] + app["install"]]
+        lines.append("    install permissions:")
+        lines += [f"      {perm}: granted=true" for perm in app["install"]]
+        installed = "true" if app["installed"] else "false"
+        lines += [
+            f"    User 0: ceDataInode=4242 installed={installed} hidden=false suspended=false stopped=false "
+            "notLaunched=false enabled=0 instant=false virtual=false",
+            f"      firstInstallTime={first}",
+            "      gids=[3003]",
+            "      runtime permissions:",
+        ]
+        lines += [
+            f"        {perm}: granted=true, flags=[ USER_SET|USER_SENSITIVE_WHEN_GRANTED ]" for perm in app["runtime"]
+        ]
+        lines += [f"        {P}POST_NOTIFICATIONS: granted=false, flags=[ USER_SET ]"]
+        lines += [
+            "    User 10: ceDataInode=0 installed=true hidden=false suspended=false enabled=0",
+            "      runtime permissions:",
+            f"        {P}READ_SMS: granted=true, flags=[ ]",
+        ]
+    lines += [
+        "",
+        "Hidden system packages:",
+        "  Package [com.android.hidden] (777):",
+        "    requested permissions:",
+        f"      {P}READ_SMS",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def device_policy(admins: list[str], owner: str | None) -> str:
+    lines = ["Current Device Policy Manager state:", "  Immutable state:", "    mHasFeature=true"]
+    if owner:
+        lines += ["  Device Owner: ", f"    admin=ComponentInfo{{{owner}/{owner}.AdminReceiver}}", "    name=Corp MDM"]
+    lines += ["", "  Enabled Device Admins (User 0, provisioningState: 3):"]
+    for admin in admins:
+        lines += [f"    {admin}:", "      uid=10123", "      testOnlyAdmin=false"]
+    lines += ["", "  Stats:", "    mAffiliationIds=[]"]
+    return "\n".join(lines) + "\n"
+
+
+def wifi_status(security: int | None) -> str:
+    if security is None:
+        return "Wifi is disabled\nWifi scanning is only available when wifi is enabled\n"
+    return (
+        "Wifi is enabled\nWifi scanning is always available\n==== Primary ClientModeManager instance ====\n"
+        'Wifi is connected to "Maison-5G"\n'
+        'WifiInfo: SSID: "Maison-5G", BSSID: 12:34:56:78:9a:bc, MAC: 02:00:00:00:00:00, IP: /192.168.1.23, '
+        f"Security type: {security}, Supplicant state: COMPLETED, Wi-Fi standard: 11ax, RSSI: -52, "
+        "Link speed: 866Mbps, Frequency: 5180MHz\n"
+    )
+
+
+CONNECTIVITY = """Current Networks:
+  NetworkAgentInfo{network{100}  handle{432902426637}  ni{WIFI CONNECTED extra: } created=2026-10-05T10:00:00Z Score(Policies : IS_VALIDATED&IS_UNMETERED ; KeepConnected : 0)  lp{{InterfaceName: wlan0 LinkAddresses: [ 192.168.1.23/24 ] DnsAddresses: [ /192.168.1.1,/fe80::1 ] Domains: home MTU: 1500}}  nc{[ Transports: WIFI Capabilities: NOT_METERED&INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VPN&VALIDATED&NOT_ROAMING LinkUpBandwidth>=40000Kbps]}}
+  NetworkAgentInfo{network{101}  handle{1}  ni{MOBILE[LTE] CONNECTED extra: } lp{{InterfaceName: rmnet0 DnsAddresses: [ /10.10.10.10 ]}}  nc{[ Transports: CELLULAR Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VPN&VALIDATED]}}
+Active default network: 100
+"""

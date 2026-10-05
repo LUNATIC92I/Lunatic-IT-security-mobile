@@ -132,3 +132,19 @@ class DeviceNotReadyError(LMSError):
     default_message = "L'appareil n'est pas prêt."
     default_cause = "Le téléphone est détecté mais ne peut pas être interrogé dans son état actuel."
     default_action = "Suivez l'action indiquée pour cet appareil dans la page Appareils."
+
+
+class ScanInProgressError(LMSError):
+    code = "scan_in_progress"
+    http_status = 409
+    default_message = "Une analyse est déjà en cours."
+    default_cause = "Une seule analyse peut être exécutée à la fois."
+    default_action = "Attendez la fin de l'analyse en cours."
+
+
+class ReportNotFoundError(LMSError):
+    code = "report_not_found"
+    http_status = 404
+    default_message = "Aucun rapport d'analyse disponible."
+    default_cause = "Aucune analyse de sécurité n'a encore été réalisée pour cet appareil pendant cette session."
+    default_action = "Lancez une analyse depuis la page Security Scan."

@@ -58,3 +58,54 @@ métacaractère). Le numéro de série est injecté via `-s` après validation.
 Les commandes marquées `destructive=True` exigent `confirmed=True`.
 `subprocess.run` est toujours appelé avec une liste d'arguments, `shell=False`,
 `stdin=DEVNULL` et un timeout ; le processus est tué à expiration.
+
+## Modules livrés en phase 3 — Security Scanner
+
+```
+AuditCollector (android_audit.py) ── commandes ADB en lecture seule ──► DeviceSnapshot
+        │
+        ├─ analyze_system            (android_audit.py)  débogage, options développeur, sources inconnues
+        ├─ boot_security             bootloader, Verified Boot, SELinux, root, build de debug, clés de test
+        ├─ encryption                ro.crypto.state / type
+        ├─ updates                   âge du correctif, version Android maintenue
+        ├─ network                   proxy, DNS privé, Wi-Fi, VPN, ADB sans fil
+        ├─ applications              origine, installations récentes
+        └─ permissions               groupes sensibles, accès spéciaux, score contextuel par application
+                │
+        recommendations.py ── score 0-100, note, tri ──► SecurityReport
+```
+
+| Fichier | Rôle |
+|---------|------|
+| `app/security/android_audit.py` | Collecte (une étape par source, chaque échec devient une *limite*), constats « système », orchestration `run_audit`. Abandon propre si le téléphone disparaît pendant l'analyse. |
+| `app/security/applications.py` | Parsing de `dumpsys package packages` (utilisateur 0 uniquement, paquets cachés ignorés) et de `pm list packages`. |
+| `app/security/permissions.py` | Groupes de permissions, `device_policy`, `appops`, services d'accessibilité / écouteurs de notifications, score de risque par application. |
+| `app/security/network.py` | `cmd wifi status`, `dumpsys connectivity`, paramètres proxy / DNS / VPN. SSID, BSSID, MAC et IP ne sont pas conservés. |
+| `app/security/boot_security.py`, `encryption.py`, `updates.py` | Sections et constats correspondants. |
+| `app/security/recommendations.py` | Calcul du score. |
+| `app/core/security_scanner.py` | Analyse en tâche de fond (une à la fois), progression, rapports en mémoire et sur disque, sections à la demande. |
+| `app/api/security_routes.py` | Endpoints de sécurité. |
+| `frontend/js/security.js` | Vues Security Scan, Applications, Permissions, Réseau, Chiffrement, Bootloader, Mises à jour. |
+
+### Score
+Chaque constat retire des points selon sa gravité (critique 35, élevée 15, moyenne 6,
+faible 2, info 0). La pénalité est plafonnée par catégorie (système 30, démarrage 50,
+applications 15, permissions 25, réseau 20, chiffrement 40, mises à jour 30) pour que
+de nombreux constats mineurs du même type ne suffisent pas à faire tomber le score.
+Un constat critique plafonne le score à 39, un constat élevé à 74.
+Notes : 90-100 Excellent, 75-89 Bon, 60-74 Moyen, 40-59 Faible, 0-39 Critique.
+
+### Score contextuel des applications
+Une permission n'est jamais considérée comme malveillante en soi. Le score d'une
+application tierce cumule des poids par capacité (micro 10, localisation en
+arrière-plan 12, SMS 12…), par accès spécial (accessibilité 30, lecture des
+notifications 18, administrateur 15…), son origine (hors magasin +15) et des
+combinaisons (origine non vérifiée + nombreuses permissions +10). Le contexte
+réduit le poids (accès SMS de l'application SMS par défaut). Les applications
+système ne sont pas notées.
+
+### Confidentialité
+Seules des listes blanches de propriétés et de paramètres sont conservées
+(`android_id`, nom de l'appareil, adresse Bluetooth sont écartés). Les rapports
+sauvegardés dans `<données>/reports/` (permissions 0600) ne contiennent que le
+numéro de série masqué.

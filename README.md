@@ -4,10 +4,10 @@ Logiciel desktop (backend Python / interface HTML-CSS-JS) pour auditer la
 sécurité des smartphones Android et guider l'installation **officielle** de
 GrapheneOS sur les Google Pixel compatibles.
 
-> **État : phases 1 et 2 livrées** — architecture, journalisation, audit,
-> exécution sécurisée d'ADB/Fastboot, diagnostic de l'environnement et
-> détection/identification des appareils. Le scanner de sécurité, la sauvegarde
-> et GrapheneOS arrivent dans les phases suivantes (voir [docs/ROADMAP.md](docs/ROADMAP.md)).
+> **État : phases 1 à 3 livrées** — architecture, journalisation, audit,
+> exécution sécurisée d'ADB/Fastboot, diagnostic de l'environnement,
+> détection des appareils et scanner de sécurité avec score. Le renforcement,
+> la sauvegarde et GrapheneOS arrivent dans les phases suivantes (voir [docs/ROADMAP.md](docs/ROADMAP.md)).
 > L'interface n'affiche que ce qui fonctionne réellement.
 
 ## Sommaire
@@ -42,6 +42,16 @@ GrapheneOS sur les Google Pixel compatibles.
   Fastboot et « plusieurs appareils » sont expliqués avec l'action à mener.
   Tout est en lecture seule ; ce qu'Android n'expose pas est listé dans
   « Limites de l'analyse » au lieu d'être deviné.
+- **Security Scan** : audit en lecture seule (système, démarrage sécurisé,
+  applications, permissions, réseau, chiffrement, mises à jour), **score de 0 à
+  100** (Excellent / Bon / Moyen / Faible / Critique) et recommandations
+  détaillées : problème, gravité, pourquoi c'est important, preuve technique,
+  recommandation, méthode de correction. Rapports sauvegardés en JSON.
+  Vues dédiées : Applications (origine, installations récentes, score de risque
+  contextuel), Permissions (caméra, micro, localisation, SMS, contacts,
+  téléphone, stockage, accessibilité, notifications, administrateur,
+  installation d'applications, VPN), Réseau, Chiffrement, Bootloader,
+  Mises à jour. Voir [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) pour le calcul du score.
 - **Logs en temps réel** dans l'interface, au format
   `2026-10-05 17:00:02 INFO Device detected`, sans secrets ni numéros de série en clair.
 - **Journal d'audit infalsifiable** (chaîne SHA-256) avec vérification d'intégrité depuis l'interface.
@@ -165,6 +175,23 @@ Répertoire de données par défaut : `~/.local/share/lunatic-mobile-security` (
 `~/Library/Application Support/LunaticMobileSecurity` (macOS),
 `%LOCALAPPDATA%\LunaticMobileSecurity` (Windows). Logs : `logs/lunatic.log`
 (rotation 5 × 5 Mo) et `logs/audit.jsonl`.
+
+## Security Scan
+
+1. Branchez le téléphone (débogage USB autorisé), ouvrez **Security Scan**.
+2. Cliquez sur **Lancer l'analyse** : la progression s'affiche étape par étape
+   (quelques secondes ; jusqu'à une minute avec plusieurs centaines d'applications).
+3. Lisez les recommandations, les plus graves en premier. Chaque carte contient
+   la preuve technique (commande et valeur lue) et la méthode de correction.
+
+L'analyse **ne modifie rien** sur le téléphone. Ce qu'ADB ne permet pas de
+vérifier est listé dans « Limites de l'analyse » : code de verrouillage,
+certificats installés par l'utilisateur, comptes, mise à jour en attente,
+attestation matérielle, contenu des applications (ce n'est pas un antivirus).
+
+API : `POST /api/security/scan`, `GET /api/security/scan`, `GET /api/security/report`,
+`GET /api/applications`, `GET /api/permissions`, `GET /api/network`, `GET /api/updates`,
+`GET /api/security/boot`, `GET /api/security/encryption` (paramètre optionnel `device_id`).
 
 ## Avertissements
 
