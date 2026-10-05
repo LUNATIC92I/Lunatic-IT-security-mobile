@@ -157,3 +157,29 @@ select {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+.link { color: var(--accent); text-decoration: none; }
+.link:hover { text-decoration: underline; }
+.contents { display: contents; }
+.switch { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; cursor: pointer; }
+.switch input { accent-color: var(--accent); }
+.btn-danger { background: var(--fail); border-color: var(--fail); color: #fff; }
+.btn-danger:hover { background: #d84340; border-color: #d84340; }
+
+/* Modal: confirmation of sensitive operations (AVANT / APRÈS / RISQUE / CONFIRMATION) */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 60; background: rgba(4, 7, 15, .72);
+  display: grid; place-items: center; padding: 16px;
+}
+.modal-backdrop[hidden] { display: none; }
+.modal {
+  width: min(560px, 100%); max-height: calc(100vh - 32px); overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 22px; animation: slide-in .15s ease-out;
+}
+.modal h2 { margin: 0 0 12px; font-size: 17px; }
+.modal-section { margin: 12px 0; }
+.modal-section .lbl { font-size: 11px; font-weight: 700; letter-spacing: .08em; color: var(--muted); margin-bottom: 4px; }
+.modal-section.risk { border: 1px solid rgba(242, 169, 59, .35); background: rgba(242, 169, 59, .07); border-radius: 8px; padding: 10px 12px; }
+.modal-section.risk .lbl { color: var(--warn); }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; flex-wrap: wrap; }

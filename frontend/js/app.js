@@ -110,6 +110,62 @@ const LMS = (() => {
     toast(payload.message, payload.action || "", "fail", 9000);
   }
 
+  // ------------------------------------------------------------------ modal
+  /**
+   * Confirmation dialog for sensitive operations. Resolves true only when the
+   * user explicitly clicks the confirm button (Escape / backdrop = cancel).
+   * options: { title, before, after, risk, confirmLabel, danger }
+   */
+  function confirmDialog(options) {
+    const backdrop = $("#modal");
+    return new Promise((resolve) => {
+      const section = (label, text, extra = "") => text
+        ? el("div", { class: "modal-section " + extra }, el("div", { class: "lbl", text: label }), el("div", { text }))
+        : null;
+      const cancel = el("button", { class: "btn", type: "button", text: "Annuler" });
+      const confirm = el("button", {
+        class: "btn " + (options.danger ? "btn-danger" : "btn-primary"),
+        type: "button",
+        text: options.confirmLabel || "Continuer",
+      });
+      const dialog = el("div", { class: "modal", role: "dialog", "aria-modal": "true", "aria-labelledby": "modal-title" },
+        el("h2", { id: "modal-title", text: options.title }),
+        section("AVANT", options.before),
+        section("APRÈS", options.after),
+        section("RISQUE", options.risk, "risk"),
+        el("div", { class: "modal-section" },
+          el("div", { class: "lbl", text: "CONFIRMATION" }),
+          el("div", { text: options.question || "Voulez-vous continuer ?" })),
+        el("div", { class: "modal-actions" }, cancel, confirm));
+      const close = (result) => {
+        document.removeEventListener("keydown", onKey);
+        backdrop.hidden = true;
+        backdrop.replaceChildren();
+        resolve(result);
+      };
+      const onKey = (event) => { if (event.key === "Escape") close(false); };
+      cancel.addEventListener("click", () => close(false));
+      confirm.addEventListener("click", () => close(true));
+      backdrop.onclick = (event) => { if (event.target === backdrop) close(false); };
+      document.addEventListener("keydown", onKey);
+      backdrop.replaceChildren(dialog);
+      backdrop.hidden = false;
+      cancel.focus();
+    });
+  }
+
+  // ------------------------------------------------------------ shared state
+  const state = { selectedDeviceId: null };
+
+  function formatBytes(bytes) {
+    if (bytes === null || bytes === undefined) return "—";
+    const units = ["o", "Ko", "Mo", "Go", "To"];
+    let value = bytes;
+    let unit = 0;
+    while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit += 1; }
+    return value.toFixed(unit >= 3 ? 1 : 0) + " " + units[unit];
+  }
+
   // ------------------------------------------------------------------ router
   const views = {};
   let currentView = null;
@@ -154,7 +210,37 @@ const LMS = (() => {
       info.minimum_version ? el("div", { class: "muted small", text: "Minimum GrapheneOS : " + info.minimum_version }) : null);
   }
 
+  async function loadDeviceCard() {
+    const badge = $("#device-card-badge");
+    try {
+      const status = await api.get("/api/device/status");
+      const ready = status.devices.filter((d) => d.ready);
+      let kind = "fail";
+      let label = "Aucun";
+      let value = "Aucun appareil";
+      if (ready.length === 1) {
+        const d = ready[0];
+        kind = "ok"; label = d.transport === "fastboot" ? "Fastboot" : "ADB";
+        value = d.model_hint || d.codename_hint || d.product_hint || "Appareil " + d.serial_masked;
+      } else if (ready.length > 1) {
+        kind = "info"; label = ready.length + " appareils"; value = "Plusieurs appareils";
+      } else if (status.devices.length) {
+        kind = "warn"; label = "Action requise"; value = "Appareil non prêt";
+      }
+      badge.className = "badge " + kind;
+      badge.textContent = label;
+      $("#device-card-value").textContent = value;
+      $("#device-card-sub").textContent = status.message;
+    } catch (error) {
+      badge.className = "badge fail";
+      badge.textContent = "Erreur";
+      $("#device-card-value").textContent = "Indisponible";
+      $("#device-card-sub").textContent = error.payload ? error.payload.message : String(error);
+    }
+  }
+
   async function loadEnvironment() {
+    loadDeviceCard();
     const button = $("#env-refresh");
     const ring = $("#env-ring");
     button.disabled = true;
@@ -319,5 +405,5 @@ const LMS = (() => {
   }
 
   document.addEventListener("DOMContentLoaded", init);
-  return { api, el, toast, errorBox, notifyError, registerView, ApiError };
+  return { api, el, toast, errorBox, notifyError, registerView, confirmDialog, formatBytes, state, ApiError };
 })();

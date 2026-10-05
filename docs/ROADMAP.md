@@ -3,7 +3,7 @@
 | Phase | Contenu | État |
 |------:|---------|------|
 | 1 | Architecture, configuration, logs, audit, exécution sécurisée ADB/Fastboot, diagnostic de l'environnement, shell de l'interface | ✅ Livrée |
-| 2 | ADB/Fastboot + détection d'appareil (`device_manager`, `adb_manager`, `fastboot_manager`, `/api/device`) | À faire |
+| 2 | ADB/Fastboot + détection d'appareil (`device_manager`, `adb_manager`, `fastboot_manager`, `/api/device`), vue Appareils | ✅ Livrée |
 | 3 | Security Scanner (`app/security/*`, score 0-100) | À faire |
 | 4 | Security Hardening (assistant AVANT / APRÈS / RISQUE / CONFIRMATION) | À faire |
 | 5 | Backup (SHA-256, progression, vérification) | À faire |

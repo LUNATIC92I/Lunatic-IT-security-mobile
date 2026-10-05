@@ -102,6 +102,10 @@ class CommandSpec:
         return argv
 
 
+SETTINGS_NAMESPACE = Arg("namespace", r"global|secure|system", max_length=6)
+SETTINGS_KEY = Arg("key", r"[a-z][a-z0-9_.]{0,63}", max_length=64)
+
+
 def _spec(*args, **kwargs) -> tuple[str, CommandSpec]:
     spec = CommandSpec(*args, **kwargs)
     return spec.name, spec
@@ -114,8 +118,51 @@ COMMAND_WHITELIST: dict[str, CommandSpec] = dict(
         _spec("adb.version", Tool.ADB, ("version",), timeout=15, description="Version d'adb"),
         _spec("adb.start_server", Tool.ADB, ("start-server",), timeout=30, description="Démarrer le serveur adb"),
         _spec("adb.devices", Tool.ADB, ("devices", "-l"), timeout=15, description="Lister les appareils ADB"),
+        _spec("adb.kill_server", Tool.ADB, ("kill-server",), timeout=15, description="Arrêter le serveur adb"),
+        # --- read-only device inspection (phase 2) ---
+        _spec("adb.get_state", Tool.ADB, ("get-state",), requires_serial=True, timeout=10, description="État ADB"),
+        _spec(
+            "adb.getprop_all",
+            Tool.ADB,
+            ("shell", "getprop"),
+            requires_serial=True,
+            timeout=20,
+            description="Propriétés système Android",
+        ),
+        _spec(
+            "adb.settings_get",
+            Tool.ADB,
+            ("shell", "settings", "get", SETTINGS_NAMESPACE, SETTINGS_KEY),
+            requires_serial=True,
+            timeout=10,
+            description="Lire un paramètre Android",
+        ),
+        _spec(
+            "adb.df_data",
+            Tool.ADB,
+            ("shell", "df", "-k", "/data"),
+            requires_serial=True,
+            timeout=15,
+            description="Espace de stockage /data",
+        ),
+        _spec(
+            "adb.battery",
+            Tool.ADB,
+            ("shell", "dumpsys", "battery"),
+            requires_serial=True,
+            timeout=15,
+            description="État de la batterie",
+        ),
         _spec("fastboot.version", Tool.FASTBOOT, ("--version",), timeout=15, description="Version de fastboot"),
         _spec("fastboot.devices", Tool.FASTBOOT, ("devices",), timeout=15, description="Lister les appareils Fastboot"),
+        _spec(
+            "fastboot.getvar_all",
+            Tool.FASTBOOT,
+            ("getvar", "all"),
+            requires_serial=True,
+            timeout=30,
+            description="Variables du bootloader (lecture seule)",
+        ),
     ]
 )
 

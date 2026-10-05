@@ -4,10 +4,10 @@ Logiciel desktop (backend Python / interface HTML-CSS-JS) pour auditer la
 sécurité des smartphones Android et guider l'installation **officielle** de
 GrapheneOS sur les Google Pixel compatibles.
 
-> **État : phase 1 livrée** — architecture, configuration, journalisation,
-> audit, exécution sécurisée d'ADB/Fastboot et diagnostic de l'environnement.
-> La détection de téléphone, le scanner de sécurité, la sauvegarde et
-> GrapheneOS arrivent dans les phases suivantes (voir [docs/ROADMAP.md](docs/ROADMAP.md)).
+> **État : phases 1 et 2 livrées** — architecture, journalisation, audit,
+> exécution sécurisée d'ADB/Fastboot, diagnostic de l'environnement et
+> détection/identification des appareils. Le scanner de sécurité, la sauvegarde
+> et GrapheneOS arrivent dans les phases suivantes (voir [docs/ROADMAP.md](docs/ROADMAP.md)).
 > L'interface n'affiche que ce qui fonctionne réellement.
 
 ## Sommaire
@@ -33,6 +33,15 @@ GrapheneOS sur les Google Pixel compatibles.
   service `fwupd` sous Linux, rappel du pilote USB Google sous Windows.
 - **Exécution sécurisée d'ADB/Fastboot** : liste blanche de commandes,
   arguments validés, jamais de shell, timeouts, processus tué en cas de blocage.
+- **Détection des appareils** (page Appareils) via ADB et Fastboot, actualisée
+  automatiquement : constructeur, modèle, codename, version Android, SDK, build,
+  numéro de série **masqué**, état ADB / débogage USB / options développeur,
+  bootloader (verrouillé ou non), Verified Boot, chiffrement, patch de sécurité
+  (avec son ancienneté), niveau d'intégrité, stockage, batterie. Les cas « aucun
+  appareil », « non autorisé », « hors ligne », « accès USB refusé », recovery,
+  Fastboot et « plusieurs appareils » sont expliqués avec l'action à mener.
+  Tout est en lecture seule ; ce qu'Android n'expose pas est listé dans
+  « Limites de l'analyse » au lieu d'être deviné.
 - **Logs en temps réel** dans l'interface, au format
   `2026-10-05 17:00:02 INFO Device detected`, sans secrets ni numéros de série en clair.
 - **Journal d'audit infalsifiable** (chaîne SHA-256) avec vérification d'intégrité depuis l'interface.
@@ -184,6 +193,13 @@ pendant le flashage : `sudo systemctl stop fwupd.service` avant l'installation.
 **Windows : téléphone non détecté en fastboot** — installez le « Google USB Driver »
 (Windows Update › mises à jour facultatives).
 
+**Appareil « Non autorisé »** — déverrouillez l'écran et acceptez la fenêtre
+« Autoriser le débogage USB ? ». Sinon, révoquez les autorisations dans les
+Options pour les développeurs puis rebranchez.
+
+**Appareil « Hors ligne »** — rebranchez le câble, puis « Redémarrer le serveur ADB »
+dans la page Appareils. Essayez un autre câble (certains ne transportent que le courant).
+
 **`le port 8765 est déjà utilisé`** — une instance tourne déjà, ou utilisez `--port`.
 
 **« Requête refusée »** dans l'interface — rechargez la page (le jeton de
@@ -193,13 +209,17 @@ session change à chaque lancement).
 
 ```bash
 ./install.sh --dev
-.venv/bin/python -m pytest          # 108 tests, aucun téléphone requis
+.venv/bin/python -m pytest          # aucun téléphone requis
 .venv/bin/ruff check . && .venv/bin/ruff format --check .
 ```
 
 Les tests installent de **faux `adb`/`fastboot` exécutables**
 (`tests/fakes/fake_platform_tool.py`) pour exercer le vrai chemin `subprocess`
 (timeouts, échecs, versions obsolètes, sorties inattendues) sans matériel.
+Les téléphones « branchés » sont décrits par la fixture `fake_devices`
+(Pixel 8 Pro verrouillé ou déverrouillé, Samsung ancien, appareil minimal ;
+états unauthorized, offline, no permissions, fastboot…) avec des sorties
+reproduisant celles des vrais outils (`tests/fakes/profiles.py`).
 Ces tests utilisent un shebang POSIX et sont ignorés sous Windows.
 
 Ajouter une commande ADB/Fastboot = ajouter une entrée à `COMMAND_WHITELIST`

@@ -103,3 +103,32 @@ class CSRFError(LMSError):
     default_message = "Requête refusée."
     default_cause = "La requête ne provient pas de l'interface LUNATIC MOBILE SECURITY."
     default_action = "Rechargez l'interface puis réessayez."
+
+
+class DeviceNotFoundError(LMSError):
+    code = "device_not_found"
+    http_status = 404
+    default_message = "Aucun appareil prêt n'a été détecté."
+    default_cause = (
+        "Le téléphone n'est pas branché, le débogage USB est désactivé ou le câble ne transmet pas les données."
+    )
+    default_action = (
+        "Branchez le téléphone avec un câble USB de données, activez « Débogage USB » dans "
+        "Paramètres › Système › Options pour les développeurs, puis actualisez."
+    )
+
+
+class MultipleDevicesError(LMSError):
+    code = "multiple_devices"
+    http_status = 409
+    default_message = "Plusieurs appareils sont connectés."
+    default_cause = "L'opération doit cibler un seul appareil."
+    default_action = "Sélectionnez l'appareil voulu dans la page Appareils, ou débranchez les autres."
+
+
+class DeviceNotReadyError(LMSError):
+    code = "device_not_ready"
+    http_status = 409
+    default_message = "L'appareil n'est pas prêt."
+    default_cause = "Le téléphone est détecté mais ne peut pas être interrogé dans son état actuel."
+    default_action = "Suivez l'action indiquée pour cet appareil dans la page Appareils."

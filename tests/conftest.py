@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import stat
 import sys
@@ -60,6 +61,19 @@ def settings(tmp_path: Path, fake_tools_dir: Path, isolated_path: None) -> Setti
 @pytest.fixture
 def settings_without_tools(tmp_path: Path, isolated_path: None) -> Settings:
     return Settings(data_dir=tmp_path / "data", open_browser=False, _env_file=None)
+
+
+@pytest.fixture
+def fake_devices(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Return a function describing the phones currently "plugged in" for the fake tools."""
+    path = tmp_path / "fake-devices.json"
+    monkeypatch.setenv("LMS_FAKE_DEVICES", str(path))
+
+    def plug(adb: list[dict] | None = None, fastboot: list[dict] | None = None, **extra) -> None:
+        path.write_text(json.dumps({"adb": adb or [], "fastboot": fastboot or [], **extra}), encoding="utf-8")
+
+    plug()
+    return plug
 
 
 @pytest.fixture

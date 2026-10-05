@@ -27,6 +27,10 @@
           <svg viewBox="0 0 24 24"><path d="M4 13h7V4H4v9Zm0 7h7v-5H4v5Zm9 0h7v-9h-7v9Zm0-16v5h7V4h-7Z"/></svg>
           Dashboard
         </a>
+        <a href="#/devices" class="nav-item" data-view="devices">
+          <svg viewBox="0 0 24 24"><path d="M16 1H8a3 3 0 0 0-3 3v16a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3V4a3 3 0 0 0-3-3Zm1 19a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v16Zm-5-2.5a1.25 1.25 0 1 0 0-2.5 1.25 1.25 0 0 0 0 2.5Z"/></svg>
+          Appareils
+        </a>
         <a href="#/logs" class="nav-item" data-view="logs">
           <svg viewBox="0 0 24 24"><path d="M5 4h14v2H5V4Zm0 5h14v2H5V9Zm0 5h9v2H5v-2Zm0 5h14v2H5v-2Z"/></svg>
           Logs
@@ -70,7 +74,18 @@
           </div>
         </div>
 
-        <div class="grid stats" id="tool-cards"></div>
+        <div class="grid stats">
+          <div class="card stat-card" id="device-card">
+            <div class="stat-top">
+              <span class="stat-label">Appareil</span>
+              <span class="badge info" id="device-card-badge">…</span>
+            </div>
+            <div class="stat-value" id="device-card-value">Recherche…</div>
+            <div class="muted small" id="device-card-sub"></div>
+            <a class="link small" href="#/devices">Ouvrir la page Appareils →</a>
+          </div>
+          <div class="contents" id="tool-cards"></div>
+        </div>
 
         <div class="card">
           <div class="card-header">
@@ -79,6 +94,27 @@
           </div>
           <ul class="check-list" id="env-checks"></ul>
         </div>
+      </section>
+
+      <!-- DEVICES -->
+      <section class="view" id="view-devices" hidden>
+        <div class="card">
+          <div class="card-header">
+            <h3>Appareils connectés</h3>
+            <div class="toolbar">
+              <label class="switch"><input type="checkbox" id="devices-auto" checked> Actualisation auto</label>
+              <button class="btn" id="devices-refresh">
+                <svg viewBox="0 0 24 24"><path d="M17.7 6.3A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.8-4.2L13 11h7V4l-2.3 2.3Z"/></svg>
+                Actualiser
+              </button>
+              <button class="btn" id="adb-restart">Redémarrer le serveur ADB</button>
+            </div>
+          </div>
+          <p class="muted" id="devices-message"></p>
+          <div id="devices-errors"></div>
+          <div class="device-list" id="device-list"></div>
+        </div>
+        <div id="device-details"></div>
       </section>
 
       <!-- LOGS -->
@@ -131,6 +167,8 @@
   </div>
 
   <div class="toasts" id="toasts" aria-live="assertive"></div>
+  <div class="modal-backdrop" id="modal" hidden></div>
   <script src="js/app.js"></script>
+  <script src="js/devices.js"></script>
 </body>
 </html>
