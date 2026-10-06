@@ -1,7 +1,9 @@
 """Application configuration.
 
-Settings are read from environment variables prefixed with ``LMS_`` and from an
-optional ``.env`` file at the project root (see ``.env.example``).
+Settings are read from environment variables prefixed with ``LMS_`` and from
+optional ``.env`` files (see ``.env.example``): ``<default data dir>/.env`` (the
+place to configure an installed package), then ``.env`` at the root of a source
+checkout. Environment variables take precedence over both files.
 
 Security-relevant values are validated strictly:
 
@@ -24,8 +26,17 @@ from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 APP_SLUG = "lunatic-mobile-security"
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-FRONTEND_DIR = PROJECT_ROOT / "frontend"
+PACKAGE_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = PACKAGE_DIR.parent
+
+
+def _frontend_dir(package_dir: Path = PACKAGE_DIR, project_root: Path = PROJECT_ROOT) -> Path:
+    """Interface files: ``app/frontend`` in an installed wheel, ``frontend/`` in a source checkout."""
+    bundled = package_dir / "frontend"
+    return bundled if (bundled / "index.html").is_file() else project_root / "frontend"
+
+
+FRONTEND_DIR = _frontend_dir()
 
 # Official GrapheneOS hosts. Downloads (phase 7) are refused for any other host.
 GRAPHENEOS_OFFICIAL_HOSTS = frozenset({"releases.grapheneos.org", "grapheneos.org"})
@@ -72,7 +83,8 @@ def default_data_dir(host_os: HostOS | None = None) -> Path:
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="LMS_",
-        env_file=PROJECT_ROOT / ".env",
+        # Later files win: the per-user file (installed package), then the source checkout's .env.
+        env_file=(default_data_dir() / ".env", PROJECT_ROOT / ".env"),
         env_file_encoding="utf-8",
         extra="ignore",
     )

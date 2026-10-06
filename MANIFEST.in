@@ -1,0 +1,6 @@
+# Source distribution: everything needed to install, test and read the docs.
+include README.md LICENSE .env.example requirements.txt requirements-dev.txt install.sh
+recursive-include docs *.md
+recursive-include scripts *.ps1 *.sh
+recursive-include frontend *.html *.svg *.css *.js
+recursive-include tests *.py

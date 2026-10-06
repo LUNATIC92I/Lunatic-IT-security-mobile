@@ -13,7 +13,7 @@
 | 9 | Frontend complet : logs en temps réel (SSE), Paramètres (outils, stockage, nettoyage), passe accessibilité et mobile sur toutes les vues | ✅ Livrée |
 | 10 | Tests : matrice des scénarios de bout en bout par l'API, débranchement pendant le flash, version installée vérifiée, contrôles statiques de l'interface, couverture ≥ 90 %, tests optionnels sur les vraies platform-tools | ✅ Livrée |
 | 11 | README complet : présentation, architecture, prérequis, installation, Platform Tools, lancement, configuration, utilisation page par page, Security Scan (score), Renforcement, Backup, GrapheneOS (13 étapes), avertissements, dépannage par symptôme, tests, développement (règles, API), sécurité | ✅ Livrée |
-| 12 | Packaging | À faire |
+| 12 | Packaging : wheel incluant l'interface, sources, `SHA256SUMS`, commande `lunatic-mobile-security`, pipx, configuration par utilisateur, raccourcis Linux/macOS/Windows, documentation par système | ✅ Livrée |
 
 Les modules d'une phase ne sont créés qu'au moment où ils sont réellement
 implémentés : le dépôt ne contient ni fichier vide ni fonctionnalité simulée.

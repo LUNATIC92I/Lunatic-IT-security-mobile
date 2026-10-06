@@ -120,8 +120,10 @@ app/
   models/                modèles Pydantic échangés par l'API
 frontend/                index.html, css/, js/ (une vue par page, aucun framework)
 tests/                   pytest + faux adb/fastboot exécutables + faux serveur GrapheneOS
-docs/                    ARCHITECTURE, SECURITY, TESTING, ROADMAP
-install.sh, scripts/install.ps1   installation Linux/macOS et Windows
+docs/                    ARCHITECTURE, SECURITY, TESTING, PACKAGING, ROADMAP
+install.sh, scripts/install.ps1   installation Linux/macOS et Windows (option raccourci)
+scripts/build_release.sh contrôles + construction du wheel et des sources + SHA256SUMS
+pyproject.toml           métadonnées du paquet, commande lunatic-mobile-security
 ```
 
 Détails techniques (score, protocole de vérification, machine à états de
@@ -174,6 +176,26 @@ cd Lunatic-IT-security-mobile
 powershell -ExecutionPolicy Bypass -File scripts\install.ps1
 ```
 
+Option `--shortcut` (Windows : `-Shortcut`) : crée un raccourci de lancement
+dans le menu Applications (Linux), `~/Applications` (macOS) ou le menu Démarrer
+(Windows).
+
+### Installation par paquet (pipx)
+
+Si vous disposez du paquet `lunatic_mobile_security-<version>-py3-none-any.whl`
+(construit par `scripts/build_release.sh`, voir [Développement](#développement)) :
+
+```bash
+sha256sum -c SHA256SUMS                     # vérifier l'empreinte du paquet
+pipx install ./lunatic_mobile_security-0.1.0-py3-none-any.whl
+lunatic-mobile-security --check
+lunatic-mobile-security
+```
+
+pipx installe le logiciel dans son propre environnement isolé et ajoute la
+commande `lunatic-mobile-security`. Détails par système (Linux, macOS,
+Windows), configuration et désinstallation : [docs/PACKAGING.md](docs/PACKAGING.md).
+
 ### Installation manuelle
 
 ```bash
@@ -183,8 +205,10 @@ python3 -m venv .venv
 
 ### Mise à jour et désinstallation
 
-- Mise à jour : `git pull` puis relancer `./install.sh` (ou `install.ps1`).
-- Désinstallation : supprimer le dossier du projet, puis, si vous le souhaitez,
+- Mise à jour : `git pull` puis relancer `./install.sh` (ou `install.ps1`) ;
+  paquet : `pipx install --force <nouveau paquet>`.
+- Désinstallation : supprimer le dossier du projet (paquet :
+  `pipx uninstall lunatic-mobile-security`), puis, si vous le souhaitez,
   le répertoire de données (voir [Configuration](#configuration)), qui
   contient logs, rapports, images téléchargées et, par défaut, les sauvegardes.
   **Vérifiez d'avoir copié vos sauvegardes ailleurs avant de le supprimer.**
@@ -279,8 +303,11 @@ redémarrage du logiciel, rechargez la page.
 
 ## Configuration
 
-Variables d'environnement `LMS_*` ou fichier `.env` à la racine du projet
-(modèle commenté : [.env.example](.env.example)). Les valeurs sont contrôlées
+Variables d'environnement `LMS_*` ou fichier `.env` (modèle commenté :
+[.env.example](.env.example)) placé à la racine du projet ou, pour une
+installation par paquet, dans le répertoire de données (`<répertoire de
+données>/.env`). Priorité : variables d'environnement, puis `.env` du projet,
+puis `.env` du répertoire de données. Les valeurs sont contrôlées
 au démarrage ; une valeur dangereuse est refusée avec un message explicite.
 
 | Variable | Défaut | Remarque |
@@ -734,6 +761,17 @@ destructives exigent en plus `"confirm": true` dans le corps de la requête.
 | Renforcement | `GET /api/hardening/plan` ; `POST /api/hardening/apply` |
 | Backup | `GET /api/backup/estimate`, `/api/backup/browse`, `/api/backup/status`, `/api/backup/list` ; `POST /api/backup/start`, `/api/backup/cancel`, `/api/backup/verify` |
 | GrapheneOS | `GET /api/graphene/compatibility`, `/api/graphene/releases`, `/api/graphene/releases/{codename}`, `/api/graphene/download/status`, `/api/graphene/images`, `/api/graphene/install/status` ; `POST /api/graphene/download`, `/api/graphene/download/cancel`, `/api/graphene/verify`, `/api/graphene/images/delete`, `/api/graphene/install`, `/api/graphene/install/confirm`, `/api/graphene/install/action`, `/api/graphene/install/abandon` |
+
+### Construire une version
+
+```bash
+scripts/build_release.sh
+```
+
+Le script lance ruff et les tests, construit `dist/*.whl` (interface incluse)
+et `dist/*.tar.gz`, vérifie le contenu du wheel et écrit `dist/SHA256SUMS`.
+Les Android Platform Tools et les images GrapheneOS ne sont jamais incluses.
+Voir [docs/PACKAGING.md](docs/PACKAGING.md).
 
 Feuille de route et état des phases : [docs/ROADMAP.md](docs/ROADMAP.md).
 

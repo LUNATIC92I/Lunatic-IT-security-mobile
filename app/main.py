@@ -222,6 +222,15 @@ def cli(argv: list[str] | None = None) -> int:
         )
         return 1
 
+    if not (FRONTEND_DIR / "index.html").is_file():
+        print(
+            f"ERREUR : l'interface est introuvable ({FRONTEND_DIR}).\n"
+            "CAUSE POSSIBLE : installation incomplète (paquet construit sans le dossier frontend).\n"
+            "ACTION : réinstallez le logiciel (README › Installation) ou lancez-le depuis le dépôt source.",
+            file=sys.stderr,
+        )
+        return 1
+
     app = create_app(settings)
     host_for_url = f"[{settings.host}]" if ":" in settings.host else settings.host
     url = f"http://{host_for_url}:{settings.port}/"
