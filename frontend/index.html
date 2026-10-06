@@ -349,6 +349,26 @@
           <div id="graphene-result"></div>
         </div>
         <div id="graphene-release"></div>
+        <div class="card" id="graphene-pipeline" hidden>
+          <div class="card-header"><h3 id="pipeline-title">Téléchargement officiel</h3><button class="btn btn-danger" id="pipeline-cancel" hidden>Annuler</button></div>
+          <ol class="pipeline" id="pipeline-steps">
+            <li data-step="download">Download</li>
+            <li data-step="verification">Verification</li>
+            <li data-step="ready">Ready</li>
+          </ol>
+          <div class="progress"><span id="pipeline-bar"></span></div>
+          <p class="muted small" id="pipeline-info"></p>
+          <div id="pipeline-result"></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3>Images GrapheneOS sur cet ordinateur</h3><button class="btn" id="images-refresh">Actualiser</button></div>
+          <div class="table-wrap">
+            <table class="table">
+              <thead><tr><th>Image</th><th>État</th><th>SHA-256</th><th></th></tr></thead>
+              <tbody id="graphene-images"></tbody>
+            </table>
+          </div>
+        </div>
         <div class="card">
           <div class="card-header">
             <h3>Appareils pris en charge</h3>

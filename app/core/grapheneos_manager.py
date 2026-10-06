@@ -11,6 +11,7 @@ from app.core.errors import LMSError
 from app.core.platform_tools import Tool, inspect_tool
 from app.graphene import compatibility
 from app.graphene.compatibility import CATALOG_DATE, SUPPORTED_DEVICES
+from app.graphene.downloader import DownloadManager
 from app.graphene.releases import NoReleaseError, ReleaseClient, validate_channel
 from app.logging_config import get_logger
 from app.models.device import Transport
@@ -38,6 +39,7 @@ class GrapheneOSManager:
         self.devices = devices
         self.audit = audit
         self.releases = releases or ReleaseClient(settings)
+        self.downloads = DownloadManager(settings, self.releases, audit)
 
     # ---------------------------------------------------------------- facts
     def _device_facts(self, connection, serial: str) -> dict:

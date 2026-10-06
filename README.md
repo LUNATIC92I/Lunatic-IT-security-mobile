@@ -4,11 +4,11 @@ Logiciel desktop (backend Python / interface HTML-CSS-JS) pour auditer la
 sécurité des smartphones Android et guider l'installation **officielle** de
 GrapheneOS sur les Google Pixel compatibles.
 
-> **État : phases 1 à 6 livrées** — architecture, journalisation, audit,
+> **État : phases 1 à 7 livrées** — architecture, journalisation, audit,
 > exécution sécurisée d'ADB/Fastboot, diagnostic de l'environnement,
 > détection des appareils, scanner de sécurité avec score, assistant de
-> renforcement, sauvegarde vérifiée et compatibilité GrapheneOS. Le
-> téléchargement vérifié et l'installation guidée arrivent dans les phases 7 et 8 (voir [docs/ROADMAP.md](docs/ROADMAP.md)).
+> renforcement, sauvegarde vérifiée, compatibilité GrapheneOS, téléchargement
+> officiel et vérification cryptographique. L'installation guidée arrive en phase 8 (voir [docs/ROADMAP.md](docs/ROADMAP.md)).
 > L'interface n'affiche que ce qui fonctionne réellement.
 
 ## Sommaire
@@ -236,6 +236,15 @@ taille, adresses exactes de l'image, de la signature et de la clé) et la liste
 des appareils pris en charge avec leur fin de support. Toutes les versions sont
 lues en direct sur `releases.grapheneos.org` ; aucun fichier GrapheneOS n'est
 hébergé ni redistribué par ce logiciel.
+
+**Télécharger et vérifier** récupère l'image officielle (reprise automatique
+après une coupure) puis effectue la même vérification que la commande
+`ssh-keygen -Y verify` du guide officiel, implémentée dans le logiciel avec la
+clé publique GrapheneOS épinglée, plus SHA-256/SHA-512, contrôle de la taille et
+du contenu de l'archive (bon appareil, bonne version). Étapes affichées :
+**Download → Verification → Ready**. En cas d'échec : **Verification FAILED —
+Installation blocked** et le fichier est supprimé. Les images vérifiées peuvent
+être revérifiées ou supprimées depuis la même page.
 
 ## Avertissements
 

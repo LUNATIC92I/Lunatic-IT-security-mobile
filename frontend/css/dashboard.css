@@ -221,3 +221,20 @@ button.chip.active { color: var(--text); border-color: var(--accent); background
 .release-grid .stat-value { font-size: 20px; }
 .url-list { margin: 10px 0 0; padding: 0; list-style: none; font-family: var(--mono); font-size: 12px; word-break: break-all; color: var(--muted); }
 .url-list li { margin: 4px 0; }
+.pipeline { display: flex; list-style: none; padding: 0; margin: 4px 0 16px; gap: 0; counter-reset: step; }
+.pipeline li { flex: 1; position: relative; padding: 10px 12px 10px 40px; border: 1px solid var(--border); background: var(--bg-elev); color: var(--muted); font-weight: 600; letter-spacing: .04em; }
+.pipeline li:first-child { border-radius: 8px 0 0 8px; }
+.pipeline li:last-child { border-radius: 0 8px 8px 0; }
+.pipeline li + li { border-left: 0; }
+.pipeline li::before { counter-increment: step; content: counter(step); position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; background: var(--surface-2); }
+.pipeline li.active { color: var(--text); border-color: var(--accent); background: rgba(79, 140, 255, .1); }
+.pipeline li.done { color: var(--ok); }
+.pipeline li.done::before { content: "✓"; background: rgba(47, 191, 113, .18); }
+.pipeline li.failed { color: var(--fail); border-color: rgba(239, 83, 80, .5); background: rgba(239, 83, 80, .08); }
+.pipeline li.failed::before { content: "✗"; background: rgba(239, 83, 80, .18); }
+.blocked-banner { border: 2px solid var(--fail); background: rgba(239, 83, 80, .1); border-radius: 10px; padding: 14px 16px; margin-top: 12px; }
+.blocked-banner strong { display: block; color: var(--fail); font-size: 16px; letter-spacing: .04em; }
+.verify-steps { list-style: none; padding: 0; margin: 10px 0 0; font-size: 13px; }
+.verify-steps li { padding: 4px 0; }
+.mono-hash { font-family: var(--mono); font-size: 11px; word-break: break-all; color: var(--muted); }
+@media (max-width: 600px) { .pipeline { flex-direction: column; } .pipeline li { border-radius: 0 !important; border-left: 1px solid var(--border) !important; } }

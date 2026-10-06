@@ -8,7 +8,7 @@
 | 4 | Security Hardening : assistant AVANT / APRÈS / RISQUE / CONFIRMATION, 9 actions vérifiées, vérifications manuelles | ✅ Livrée |
 | 5 | Backup : stockage partagé + APK, SHA-256 téléphone ↔ ordinateur, progression, annulation, revérification | ✅ Livrée |
 | 6 | Compatibilité GrapheneOS : catalogue officiel, versions en direct depuis releases.grapheneos.org, vérifications appareil + ordinateur | ✅ Livrée |
-| 7 | Téléchargement + vérification cryptographique | À faire |
+| 7 | Téléchargement officiel avec reprise + vérification cryptographique (signature SSHSIG GrapheneOS, SHA-256/512, archive) | ✅ Livrée |
 | 8 | Assistant d'installation (preflight checks, flash) | À faire |
 | 9 | Frontend complet (toutes les vues) | À faire |
 | 10 | Tests (scénarios unauthorized/offline/multi-appareils, interruption…) | À faire |

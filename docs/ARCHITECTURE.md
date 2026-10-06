@@ -218,3 +218,41 @@ redirections, limite la taille des métadonnées à 256 Ko et met la vue d'ensem
 | Déverrouillage | `ro.oem_unlock_supported`, `sys.oem_unlock_allowed` (ADB) ; `fastboot flashing get_unlock_ability` | appareil non déverrouillable (variante opérateur) — jamais contourné |
 | Fastboot de l'ordinateur | `fastboot --version` | < 35.0.1 |
 | Espace disque | dossier de téléchargement | < 32 Go (prérequis du guide officiel) |
+
+## Modules livrés en phase 7 — Téléchargement et vérification
+
+| Fichier | Rôle |
+|---------|------|
+| `app/graphene/verifier.py` | Vérification SSHSIG (Ed25519) en Python, clé GrapheneOS épinglée, SHA-256/SHA-512, contrôle de l'archive. |
+| `app/graphene/downloader.py` | Téléchargement HTTPS avec reprise (`Range`), annulation, puis vérification ; `verified.json`. |
+| `app/api/graphene_routes.py` | `POST /api/graphene/download`, `GET /api/graphene/download/status`, `POST /api/graphene/download/cancel`, `POST /api/graphene/verify`, `GET /api/graphene/images`, `POST /api/graphene/images/delete`. |
+
+### Vérification (équivalent exact de la commande du guide officiel)
+`ssh-keygen -Y verify -f allowed_signers -I contact@grapheneos.org -n "factory images" -s <image>.zip.sig < <image>.zip`
+est réimplémentée avec `cryptography` (pas besoin d'OpenSSH) :
+
+1. `allowed_signers` téléchargé **doit contenir la clé épinglée** dans le code
+   (`ssh-ed25519 AAAAC3…xdJE`, empreinte `SHA256:AhgHif0mei+9aNyKLfMZBh2yptHdw/aN7Tlh/j2eFwM`,
+   publiée sur grapheneos.org/install/cli). Une clé différente est refusée : la
+   confiance ne dépend jamais uniquement de ce que renvoie le réseau.
+2. Signature SSHSIG : magie, version 1, clé = clé épinglée, espace de noms
+   `factory images`, type `ssh-ed25519`, hachage sha512 (ou sha256).
+3. SHA-512 du fichier (et SHA-256 pour l'affichage et le contrôle avant flashage),
+   vérification Ed25519 de `"SSHSIG" ‖ namespace ‖ reserved ‖ hash_alg ‖ H(fichier)`.
+4. Taille identique à celle annoncée par le serveur officiel.
+5. Archive : toutes les entrées sous `<codename>-install-<version>/`, aucun chemin
+   dangereux, `flash-all.sh` et `flash-all.bat` présents → une image signée mais
+   destinée à un autre appareil ou une autre version est refusée.
+
+Résultat : **Download → Verification → Ready**. Au moindre échec :
+**Verification FAILED — Installation blocked**, fichiers supprimés.
+
+Validé le 2026-10-06 sur les vraies images officielles `husky-install-2026100200.zip`
+(1 873 867 524 octets) et `shiba-install-2026100200.zip` (reprise après annulation à 306 Mo).
+
+### Téléchargement
+- Version toujours issue des métadonnées officielles (le client ne choisit que l'appareil et le canal).
+- HTTPS vérifié, hôte officiel uniquement, redirections refusées, taille ≤ 4 Gio et
+  égale à l'annonce du serveur, espace libre ≥ 2,5 × taille.
+- Fichier `.part` conservé après interruption ou annulation, reprise par `Range`
+  avec contrôle de `Content-Range`.
