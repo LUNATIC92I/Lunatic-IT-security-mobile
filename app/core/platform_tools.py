@@ -471,6 +471,14 @@ COMMAND_WHITELIST: dict[str, CommandSpec] = dict(
             timeout=1800,
             description="Copier un APK vers l'ordinateur",
         ),
+        _spec(
+            "fastboot.get_unlock_ability",
+            Tool.FASTBOOT,
+            ("flashing", "get_unlock_ability"),
+            requires_serial=True,
+            timeout=20,
+            description="Le bootloader accepte-t-il le déverrouillage ? (lecture)",
+        ),
         _spec("fastboot.version", Tool.FASTBOOT, ("--version",), timeout=15, description="Version de fastboot"),
         _spec("fastboot.devices", Tool.FASTBOOT, ("devices",), timeout=15, description="Lister les appareils Fastboot"),
         _spec(

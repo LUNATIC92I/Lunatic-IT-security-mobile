@@ -35,6 +35,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from app import APP_NAME, __version__
 from app.api.backup_routes import router as backup_router
 from app.api.device_routes import router as device_router
+from app.api.graphene_routes import router as graphene_router
 from app.api.hardening_routes import router as hardening_router
 from app.api.routes import router as core_router
 from app.api.security_routes import router as security_router
@@ -43,6 +44,7 @@ from app.core.audit_logger import AuditLogger
 from app.core.backup_manager import BackupManager
 from app.core.device_manager import DeviceManager
 from app.core.errors import CSRFError, InvalidInputError, LMSError
+from app.core.grapheneos_manager import GrapheneOSManager
 from app.core.hardening_service import HardeningService
 from app.core.platform_tools import CommandRunner
 from app.core.security_scanner import SecurityScanner
@@ -77,6 +79,7 @@ def create_app(settings: Settings | None = None, *, console_logging: bool = True
     app.state.scanner = SecurityScanner(settings, app.state.devices, app.state.audit)
     app.state.hardening = HardeningService(app.state.scanner, app.state.audit)
     app.state.backup = BackupManager(settings, app.state.scanner, app.state.audit)
+    app.state.graphene = GrapheneOSManager(settings, app.state.devices, app.state.audit)
 
     allowed_hosts = ["127.0.0.1", "localhost", "[::1]", "::1"]
     allowed_origins = {f"http://{host}:{settings.port}" for host in ("127.0.0.1", "localhost", "[::1]")}
@@ -126,6 +129,7 @@ def create_app(settings: Settings | None = None, *, console_logging: bool = True
     app.include_router(security_router)
     app.include_router(hardening_router)
     app.include_router(backup_router)
+    app.include_router(graphene_router)
 
     if FRONTEND_DIR.is_dir():
         app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

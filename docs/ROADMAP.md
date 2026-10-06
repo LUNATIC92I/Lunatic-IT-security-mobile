@@ -7,7 +7,7 @@
 | 3 | Security Scanner (`app/security/*`, score 0-100), vues Scan / Applications / Permissions / Réseau / Chiffrement / Bootloader / Mises à jour | ✅ Livrée |
 | 4 | Security Hardening : assistant AVANT / APRÈS / RISQUE / CONFIRMATION, 9 actions vérifiées, vérifications manuelles | ✅ Livrée |
 | 5 | Backup : stockage partagé + APK, SHA-256 téléphone ↔ ordinateur, progression, annulation, revérification | ✅ Livrée |
-| 6 | Compatibilité GrapheneOS (`graphene/compatibility.py`, `releases.py`) | À faire |
+| 6 | Compatibilité GrapheneOS : catalogue officiel, versions en direct depuis releases.grapheneos.org, vérifications appareil + ordinateur | ✅ Livrée |
 | 7 | Téléchargement + vérification cryptographique | À faire |
 | 8 | Assistant d'installation (preflight checks, flash) | À faire |
 | 9 | Frontend complet (toutes les vues) | À faire |

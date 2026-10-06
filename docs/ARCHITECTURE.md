@@ -186,3 +186,35 @@ Le chemin local de destination est transmis à `adb` par la liste d'arguments
 (jamais par un shell, ni au shell du téléphone) : il peut donc contenir espaces
 et accents. Les chemins lus depuis le téléphone ou depuis un `SHA256SUMS` sont
 résolus avec `safe_join` : un chemin sortant du dossier de sauvegarde est refusé.
+
+## Modules livrés en phase 6 — Compatibilité GrapheneOS
+
+| Fichier | Rôle |
+|---------|------|
+| `app/graphene/compatibility.py` | Catalogue officiel (21 appareils, fin du support constructeur, appareils en fin de vie) au `CATALOG_DATE`, vérifications appareil et ordinateur. |
+| `app/graphene/releases.py` | Client HTTPS des métadonnées officielles. |
+| `app/core/grapheneos_manager.py` | Compatibilité du téléphone connecté (ADB ou Fastboot), catalogue enrichi des versions publiées. |
+| `app/models/graphene_release.py` | `GrapheneRelease`, `CompatibilityResult`. |
+| `app/api/graphene_routes.py` | `GET /api/graphene/compatibility`, `GET /api/graphene/releases`, `GET /api/graphene/releases/{codename}`. |
+| `frontend/js/graphene.js` | Vue GrapheneOS. |
+
+### Sources officielles utilisées
+- `https://releases.grapheneos.org/<codename>-<canal>` : `VERSION TIMESTAMP CODENAME CANAL`, **source de vérité** pour la
+  disponibilité d'une version. La réponse doit nommer l'appareil et le canal demandés.
+- `https://releases.grapheneos.org/overview.json` : vue d'ensemble lue par la page officielle des versions. Elle peut
+  être incomplète (Pixel 10a et Pixel 9a absents le 2026-10-06 alors que leurs fichiers par appareil existent) : les
+  appareils manquants sont complétés par leur fichier `<codename>-stable`.
+- Image `<codename>-install-<version>.zip`, signature `.zip.sig`, clé `allowed_signers` (vérification en phase 7).
+
+Le client force HTTPS sur un hôte officiel (validé dans la configuration), valide les certificats TLS, refuse les
+redirections, limite la taille des métadonnées à 256 Ko et met la vue d'ensemble en cache 5 minutes.
+
+### Vérifications
+| Point | Source | Bloquant si |
+|-------|--------|-------------|
+| Modèle | `ro.product.device` (ADB) ou `getvar product` (Fastboot) | absent du catalogue, ou en fin de vie |
+| Version officielle | `<codename>-<canal>` | aucune version publiée (serveur injoignable = avertissement) |
+| Durée de support | catalogue | jamais (avertissement à moins de 6 mois ou après la fin) |
+| Déverrouillage | `ro.oem_unlock_supported`, `sys.oem_unlock_allowed` (ADB) ; `fastboot flashing get_unlock_ability` | appareil non déverrouillable (variante opérateur) — jamais contourné |
+| Fastboot de l'ordinateur | `fastboot --version` | < 35.0.1 |
+| Espace disque | dossier de téléchargement | < 32 Go (prérequis du guide officiel) |

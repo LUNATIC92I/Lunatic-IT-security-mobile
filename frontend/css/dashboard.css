@@ -213,3 +213,11 @@ button.chip.active { color: var(--text); border-color: var(--accent); background
 .dir-entry::before { content: "📁 "; }
 .summary-row { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 14px 0 4px; align-items: baseline; }
 .result-list { margin: 6px 0 0; padding-left: 18px; font-family: var(--mono); font-size: 12px; color: var(--muted); max-height: 180px; overflow-y: auto; }
+
+/* ------------------------------------------------------------- GrapheneOS */
+.compat-head { display: flex; gap: 16px; align-items: center; padding: 14px 0 6px; flex-wrap: wrap; }
+.compat-head .compat-model { font-size: 18px; font-weight: 600; }
+.release-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
+.release-grid .stat-value { font-size: 20px; }
+.url-list { margin: 10px 0 0; padding: 0; list-style: none; font-family: var(--mono); font-size: 12px; word-break: break-all; color: var(--muted); }
+.url-list li { margin: 4px 0; }

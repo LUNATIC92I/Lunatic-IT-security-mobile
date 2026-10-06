@@ -334,6 +334,12 @@ def _fastboot(args: list[str], scenario: str) -> int:
             return 1
         sys.stderr.write(FASTBOOT_GETVAR[device.get("profile", "pixel8pro_stock")])
         return 0
+    if len(args) == 4 and args[0] == "-s" and args[2:] == ["flashing", "get_unlock_ability"]:
+        device = _find(config.get("fastboot", []), args[1])
+        if device is None:
+            return 1
+        sys.stderr.write(f"(bootloader) get_unlock_ability: {device.get('unlock_ability', 1)}\nOKAY [  0.001s]\n")
+        return 0
     sys.stderr.write(f"fastboot: unknown command {' '.join(args)}\n")
     return 1
 

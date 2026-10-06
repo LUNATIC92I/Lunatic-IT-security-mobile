@@ -4,10 +4,11 @@ Logiciel desktop (backend Python / interface HTML-CSS-JS) pour auditer la
 sécurité des smartphones Android et guider l'installation **officielle** de
 GrapheneOS sur les Google Pixel compatibles.
 
-> **État : phases 1 à 5 livrées** — architecture, journalisation, audit,
+> **État : phases 1 à 6 livrées** — architecture, journalisation, audit,
 > exécution sécurisée d'ADB/Fastboot, diagnostic de l'environnement,
 > détection des appareils, scanner de sécurité avec score, assistant de
-> renforcement et sauvegarde vérifiée. GrapheneOS arrive dans les phases suivantes (voir [docs/ROADMAP.md](docs/ROADMAP.md)).
+> renforcement, sauvegarde vérifiée et compatibilité GrapheneOS. Le
+> téléchargement vérifié et l'installation guidée arrivent dans les phases 7 et 8 (voir [docs/ROADMAP.md](docs/ROADMAP.md)).
 > L'interface n'affiche que ce qui fonctionne réellement.
 
 ## Sommaire
@@ -222,6 +223,19 @@ ligne de commande : `cd <sauvegarde> && sha256sum -c SHA256SUMS`.
 **Non sauvegardable via ADB sans root** : données privées des applications,
 SMS, journal d'appels, contacts (exportez vos contacts en .vcf dans
 Téléchargements pour les inclure). Le logiciel ne prétend pas le faire.
+
+## GrapheneOS
+
+La page **GrapheneOS** vérifie si le téléphone connecté (Android/ADB ou mode
+Fastboot) peut recevoir GrapheneOS : modèle pris en charge, version officielle
+publiée sur le canal choisi, durée de support restante, possibilité de
+déverrouiller le bootloader (les variantes opérateur verrouillées ne peuvent
+pas l'être : le logiciel ne contourne pas ce verrouillage), version de fastboot
+et 32 Go d'espace disque. Elle affiche la version officielle (numéro, date,
+taille, adresses exactes de l'image, de la signature et de la clé) et la liste
+des appareils pris en charge avec leur fin de support. Toutes les versions sont
+lues en direct sur `releases.grapheneos.org` ; aucun fichier GrapheneOS n'est
+hébergé ni redistribué par ce logiciel.
 
 ## Avertissements
 
