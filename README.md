@@ -6,7 +6,7 @@ exclusivement la procédure officielle. Backend Python (FastAPI), interface
 HTML/CSS/JavaScript ouverte dans le navigateur, tout fonctionne en local.
 
 > **Version 0.1.0.** Toutes les fonctions décrites ici sont implémentées et
-> testées (374 tests automatisés, voir [docs/TESTING.md](docs/TESTING.md)).
+> testées (près de 400 tests automatisés, voir [docs/TESTING.md](docs/TESTING.md)).
 > L'assistant d'installation GrapheneOS a été validé avec les vrais outils
 > officiels, les vraies images signées et le vrai script `flash-all.sh`, mais
 > contre un **Pixel simulé** : lisez la section [Avertissements](#avertissements)

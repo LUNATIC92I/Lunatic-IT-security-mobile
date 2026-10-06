@@ -1,5 +1,5 @@
 # Runtime dependencies - LUNATIC MOBILE SECURITY
-fastapi>=0.115,<1.0
+fastapi>=0.115.3,<1.0
 uvicorn[standard]>=0.30,<1.0
 pydantic>=2.7,<3.0
 pydantic-settings>=2.3,<3.0
