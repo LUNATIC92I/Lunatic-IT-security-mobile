@@ -10,10 +10,13 @@
 
 const LMS = (() => {
   // ---------------------------------------------------------------- DOM utils
+  const BOOLEAN_ATTRS = new Set(["checked", "disabled", "hidden", "open", "selected", "readonly", "required"]);
+
   function el(tag, attrs = {}, ...children) {
     const node = document.createElement(tag);
     for (const [key, value] of Object.entries(attrs)) {
       if (value === null || value === undefined || value === false) continue;
+      if (BOOLEAN_ATTRS.has(key) && value !== true) throw new TypeError("el(): attribute " + key + " needs a boolean");
       if (key === "class") node.className = value;
       else if (key === "text") node.textContent = value;
       else if (key.startsWith("on") && typeof value === "function") node.addEventListener(key.slice(2), value);

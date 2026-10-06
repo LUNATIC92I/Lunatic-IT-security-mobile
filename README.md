@@ -4,10 +4,10 @@ Logiciel desktop (backend Python / interface HTML-CSS-JS) pour auditer la
 sécurité des smartphones Android et guider l'installation **officielle** de
 GrapheneOS sur les Google Pixel compatibles.
 
-> **État : phases 1 à 4 livrées** — architecture, journalisation, audit,
+> **État : phases 1 à 5 livrées** — architecture, journalisation, audit,
 > exécution sécurisée d'ADB/Fastboot, diagnostic de l'environnement,
-> détection des appareils, scanner de sécurité avec score et assistant de
-> renforcement. La sauvegarde et GrapheneOS arrivent dans les phases suivantes (voir [docs/ROADMAP.md](docs/ROADMAP.md)).
+> détection des appareils, scanner de sécurité avec score, assistant de
+> renforcement et sauvegarde vérifiée. GrapheneOS arrive dans les phases suivantes (voir [docs/ROADMAP.md](docs/ROADMAP.md)).
 > L'interface n'affiche que ce qui fonctionne réellement.
 
 ## Sommaire
@@ -202,6 +202,26 @@ attestation matérielle, contenu des applications (ce n'est pas un antivirus).
 API : `POST /api/security/scan`, `GET /api/security/scan`, `GET /api/security/report`,
 `GET /api/applications`, `GET /api/permissions`, `GET /api/network`, `GET /api/updates`,
 `GET /api/security/boot`, `GET /api/security/encryption` (paramètre optionnel `device_id`).
+
+## Backup
+
+1. Ouvrez **Backup** : la taille de chaque dossier du stockage partagé s'affiche.
+2. Cochez les dossiers (Photos/DCIM, Images, Documents, Téléchargements…) et, si
+   besoin, les **APK des applications tierces** (pour les réinstaller).
+3. Choisissez le dossier de destination (**Parcourir…**) ; l'espace libre est contrôlé.
+4. **Démarrer** : progression, nombre de fichiers vérifiés, annulation possible
+   (les fichiers partiels sont alors supprimés).
+5. Résultat : « SHA-256 vérifié » uniquement si chaque fichier copié est
+   identique à l'original (empreinte calculée sur le téléphone puis sur
+   l'ordinateur). Sinon, la liste précise des anomalies est affichée.
+
+Chaque sauvegarde contient `SHA256SUMS` et `backup.json`. Vous pouvez la
+revérifier à tout moment depuis l'interface (**Vérifier l'intégrité**) ou en
+ligne de commande : `cd <sauvegarde> && sha256sum -c SHA256SUMS`.
+
+**Non sauvegardable via ADB sans root** : données privées des applications,
+SMS, journal d'appels, contacts (exportez vos contacts en .vcf dans
+Téléchargements pour les inclure). Le logiciel ne prétend pas le faire.
 
 ## Avertissements
 

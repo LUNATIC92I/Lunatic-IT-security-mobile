@@ -63,6 +63,10 @@
           <svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8Zm-1 4v5l4.3 2.5.7-1.2-3.5-2.1V8H11Z"/></svg>
           Mises à jour
         </a>
+        <a href="#/backup" class="nav-item" data-view="backup">
+          <svg viewBox="0 0 24 24"><path d="M19.4 10A7.5 7.5 0 0 0 5.3 8 6 6 0 0 0 6 20h13a5 5 0 0 0 .4-10ZM13 13v4h-2v-4H8l4-4 4 4h-3Z"/></svg>
+          Backup
+        </a>
         <a href="#/logs" class="nav-item" data-view="logs">
           <svg viewBox="0 0 24 24"><path d="M5 4h14v2H5V4Zm0 5h14v2H5V9Zm0 5h9v2H5v-2Zm0 5h14v2H5v-2Z"/></svg>
           Logs
@@ -274,6 +278,53 @@
       <section class="view" id="view-bootloader" hidden><div id="bootloader-content"></div></section>
       <section class="view" id="view-updates" hidden><div id="updates-content"></div></section>
 
+      <!-- BACKUP -->
+      <section class="view" id="view-backup" hidden>
+        <div class="grid two">
+          <div class="card">
+            <div class="card-header"><h3>1. Données à sauvegarder</h3><button class="btn" id="backup-refresh">Actualiser</button></div>
+            <div id="backup-folders" class="folder-list"><p class="muted">Lecture du stockage du téléphone…</p></div>
+            <label class="folder-row apk-row"><input type="checkbox" id="backup-apks"> <span>APK des applications tierces <span class="muted small" id="backup-apk-count"></span><br><span class="muted small">Pour réinstaller les applications : leurs données ne sont pas incluses.</span></span></label>
+          </div>
+          <div class="card">
+            <div class="card-header"><h3>Ce qui ne peut pas être sauvegardé</h3></div>
+            <ul class="notes" id="backup-not-possible"></ul>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3>2. Destination</h3><button class="btn" id="backup-browse-toggle">Parcourir…</button></div>
+          <div class="dest-row">
+            <input class="input dest-input" id="backup-dest" spellcheck="false" aria-label="Dossier de destination">
+          </div>
+          <div class="dir-browser" id="backup-browser" hidden></div>
+          <div class="summary-row">
+            <span>Sélection : <strong id="backup-selected-size">0 o</strong></span>
+            <span>Espace libre : <strong id="backup-free">?</strong></span>
+            <span class="muted small">Un sous-dossier daté est créé ; les empreintes SHA-256 sont calculées sur le téléphone puis vérifiées sur l'ordinateur.</span>
+          </div>
+          <div class="hero-actions">
+            <button class="btn btn-primary" id="backup-start">Démarrer la sauvegarde</button>
+          </div>
+          <div id="backup-error"></div>
+        </div>
+        <div class="card" id="backup-progress" hidden>
+          <div class="card-header"><h3>Sauvegarde en cours</h3><button class="btn btn-danger" id="backup-cancel">Annuler</button></div>
+          <div class="progress"><span id="backup-bar"></span></div>
+          <p class="scan-step"><span class="pulse-dot"></span><span id="backup-step">Préparation…</span></p>
+          <p class="muted small" id="backup-counters"></p>
+        </div>
+        <div id="backup-result"></div>
+        <div class="card">
+          <div class="card-header"><h3>Sauvegardes existantes</h3><span class="muted small" id="backup-list-dest"></span></div>
+          <div class="table-wrap">
+            <table class="table">
+              <thead><tr><th>Sauvegarde</th><th>Appareil</th><th>Contenu</th><th>État</th><th></th></tr></thead>
+              <tbody id="backup-list"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
       <!-- LOGS -->
       <section class="view" id="view-logs" hidden>
         <div class="card">
@@ -330,5 +381,6 @@
   <script src="js/devices.js"></script>
   <script src="js/security.js"></script>
   <script src="js/hardening.js"></script>
+  <script src="js/backup.js"></script>
 </body>
 </html>

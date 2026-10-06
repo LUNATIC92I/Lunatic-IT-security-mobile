@@ -194,3 +194,22 @@ button.chip.active { color: var(--text); border-color: var(--accent); background
 .harden-result.warn { border: 1px solid rgba(242, 169, 59, .35); background: rgba(242, 169, 59, .08); }
 .danger-note { border: 1px solid rgba(239, 83, 80, .35); background: rgba(239, 83, 80, .07); border-radius: 8px; padding: 10px 12px; font-size: 13px; }
 @media (max-width: 600px) { .harden-item .ba { grid-template-columns: 1fr; } }
+
+/* ---------------------------------------------------------------- Backup */
+.folder-list { display: grid; gap: 4px; }
+.folder-row { display: grid; grid-template-columns: 20px 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+.folder-row:hover { background: var(--bg-elev); }
+.folder-row.disabled { opacity: .5; cursor: default; }
+.folder-row input, .apk-row input { accent-color: var(--accent); width: 16px; height: 16px; }
+.apk-row { grid-template-columns: 20px 1fr; margin-top: 10px; border-top: 1px solid var(--border); padding-top: 14px; border-radius: 0; }
+.folder-size { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; }
+.dest-row { display: flex; gap: 10px; }
+.dest-input { flex: 1; font-family: var(--mono); font-size: 13px; }
+.dir-browser { margin-top: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-elev); max-height: 300px; overflow-y: auto; }
+.dir-browser .dir-head { position: sticky; top: 0; background: var(--surface-2); padding: 8px 10px; display: flex; gap: 8px; align-items: center; font-family: var(--mono); font-size: 12px; border-bottom: 1px solid var(--border); }
+.dir-browser .dir-head span { flex: 1; word-break: break-all; }
+.dir-entry { display: block; width: 100%; text-align: left; background: none; border: 0; color: var(--text); font: inherit; font-size: 13px; padding: 7px 12px; cursor: pointer; }
+.dir-entry:hover { background: rgba(79, 140, 255, .08); }
+.dir-entry::before { content: "📁 "; }
+.summary-row { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 14px 0 4px; align-items: baseline; }
+.result-list { margin: 6px 0 0; padding-left: 18px; font-family: var(--mono); font-size: 12px; color: var(--muted); max-height: 180px; overflow-y: auto; }

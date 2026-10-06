@@ -80,3 +80,37 @@ def fake_devices(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 def client(settings: Settings) -> TestClient:
     app = create_app(settings, console_logging=False)
     return TestClient(app, base_url=f"http://127.0.0.1:{settings.port}")
+
+
+@pytest.fixture
+def phone_storage(tmp_path: Path) -> dict:
+    """A fake phone filesystem: shared storage with accents/spaces and two APKs."""
+    import os as _os
+
+    root = tmp_path / "phone"
+    shared = root / "storage" / "emulated" / "0"
+    files = {
+        "DCIM/Camera/IMG_20261001_101010.jpg": _os.urandom(300_000),
+        "DCIM/Camera/VID_20261002.mp4": _os.urandom(900_000),
+        "Download/Mon document é.pdf": b"%PDF-1.7 fake",
+        "Documents/notes/todo.txt": b"acheter du pain\n",
+        "Android/data/com.app/secret.db": b"must never be copied",
+    }
+    for rel, data in files.items():
+        path = shared / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+    (shared / "Music").mkdir(parents=True)  # empty folder
+    apks = {
+        "com.whatsapp": [
+            "/data/app/~~Ab1==/com.whatsapp-Xy9==/base.apk",
+            "/data/app/~~Ab1==/com.whatsapp-Xy9==/split_config.arm64_v8a.apk",
+        ],
+        "org.mozilla.firefox": ["/data/app/~~Cd2==/org.mozilla.firefox-Zz1==/base.apk"],
+    }
+    for paths in apks.values():
+        for remote in paths:
+            local = root / remote.lstrip("/")
+            local.parent.mkdir(parents=True, exist_ok=True)
+            local.write_bytes(_os.urandom(50_000))
+    return {"root": str(root), "apks": apks}

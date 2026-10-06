@@ -151,3 +151,38 @@ code de verrouillage. Ils figurent dans les « vérifications manuelles ».
 4. Le résultat n'est « vérifié » qu'après une nouvelle lecture montrant la valeur
    attendue ; sinon il est rapporté « non vérifié ».
 5. Chaque demande, réussite, échec ou non-vérification est inscrite dans l'audit.
+
+## Modules livrés en phase 5 — Backup
+
+| Fichier | Rôle |
+|---------|------|
+| `app/core/backup_manager.py` | Estimation, choix de la destination, sauvegarde en tâche de fond, vérification, liste et revérification des sauvegardes. |
+| `app/api/backup_routes.py` | `/api/backup/estimate`, `browse`, `start`, `status`, `cancel`, `list`, `verify`. |
+| `frontend/js/backup.js` | Vue Backup. |
+
+### Déroulement
+1. Contrôles préalables : appareil ADB prêt, dossiers dans la liste autorisée,
+   destination absolue existante et accessible en écriture, espace libre ≥
+   taille estimée × 1,05 + 200 Mo.
+2. Pour chaque dossier : `find <dossier> -type f -exec sha256sum {} +` **sur le
+   téléphone**, puis `adb pull` vers `<destination>/LMS-backup-<modèle>-<date>.partial/shared/`.
+3. Chaque fichier est haché **sur l'ordinateur** et comparé. Un fichier
+   différent n'est pas inscrit dans `SHA256SUMS` ; il est listé dans les anomalies.
+   Un fichier apparu pendant la copie est signalé comme non vérifié.
+4. Option APK : `pm path` puis `sha256sum` et `adb pull` de chaque APK.
+5. Écriture de `SHA256SUMS` (compatible `sha256sum -c`) et `backup.json`, puis
+   renommage du dossier sans `.partial`. Statut `verified` uniquement si tout
+   correspond, sinon `incomplete`.
+6. Annulation ou échec (câble débranché, disque plein) : le processus adb est
+   tué et le dossier `.partial` supprimé.
+
+### Limites (affichées dans l'interface)
+Données privées des applications, SMS, journal d'appels et contacts ne sont pas
+accessibles à ADB sans root ; `adb backup` n'est pas utilisé (obsolète, ignoré
+par les applications récentes) ; `Android/` est exclu.
+
+### Sécurité
+Le chemin local de destination est transmis à `adb` par la liste d'arguments
+(jamais par un shell, ni au shell du téléphone) : il peut donc contenir espaces
+et accents. Les chemins lus depuis le téléphone ou depuis un `SHA256SUMS` sont
+résolus avec `safe_join` : un chemin sortant du dossier de sauvegarde est refusé.

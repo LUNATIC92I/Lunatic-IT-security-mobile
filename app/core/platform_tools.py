@@ -20,6 +20,7 @@ import os
 import re
 import shutil
 import subprocess
+import threading
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -30,6 +31,7 @@ from app.config import GRAPHENEOS_MIN_FASTBOOT_VERSION, HostOS, Settings, detect
 from app.core.errors import (
     CommandNotAllowedError,
     InvalidInputError,
+    LMSError,
     ToolExecutionError,
     ToolNotFoundError,
     ToolTimeoutError,
@@ -47,7 +49,7 @@ class Tool(str, Enum):
     FASTBOOT = "fastboot"
 
 
-SHELL_SAFE = re.compile(r"[A-Za-z0-9._:/@+=,-]+")
+SHELL_SAFE = re.compile(r"[A-Za-z0-9._:/@+=,-][A-Za-z0-9._:/@+=,~-]*")  # "~" never first: no tilde expansion
 
 
 @dataclass(frozen=True)
@@ -69,6 +71,23 @@ class Arg:
         # phone's /system/bin/sh, so no variable part may ever contain a shell metacharacter.
         if not SHELL_SAFE.fullmatch(value):
             raise InvalidInputError(detail=f"argument '{self.name}' contains forbidden characters")
+        return value
+
+
+@dataclass(frozen=True)
+class LocalPathArg(Arg):
+    """Absolute path on THIS computer (e.g. adb pull destination).
+
+    Passed to the local adb/fastboot process through argv (no shell at all) and
+    never forwarded to the phone's shell, so spaces and accents are allowed;
+    it must be absolute and must not contain NUL or line breaks.
+    """
+
+    def validate(self, value: object) -> str:
+        if not isinstance(value, str) or not value or len(value) > self.max_length:
+            raise InvalidInputError(detail=f"argument '{self.name}' rejected")
+        if any(ch in value for ch in ("\x00", "\n", "\r")) or not Path(value).is_absolute():
+            raise InvalidInputError(detail=f"argument '{self.name}' must be an absolute local path")
         return value
 
 
@@ -149,6 +168,29 @@ REVOCABLE_PERMISSIONS = (
     "READ_MEDIA_AUDIO",
 )
 RUNTIME_PERMISSION = Arg("permission", r"android\.permission\.(?:" + "|".join(REVOCABLE_PERMISSIONS) + ")")
+
+
+# Shared-storage folders that may be backed up (user 0). Android/ (app-specific
+# storage) is deliberately excluded: it belongs to applications.
+SHARED_STORAGE_ROOT = "/storage/emulated/0"
+SHARED_FOLDERS = (
+    "DCIM",
+    "Pictures",
+    "Movies",
+    "Music",
+    "Documents",
+    "Download",
+    "Recordings",
+    "Podcasts",
+    "Audiobooks",
+    "Ringtones",
+    "Alarms",
+    "Notifications",
+)
+SHARED_DIR = Arg("folder", re.escape(SHARED_STORAGE_ROOT) + "/(?:" + "|".join(SHARED_FOLDERS) + ")", max_length=64)
+APK_PATH = Arg("apk", r"/data/app/[A-Za-z0-9._~=+/-]+\.apk", max_length=400)
+LOCAL_DIR = LocalPathArg("destination", r".+", max_length=4096)
+BACKUP_TIMEOUT = 6 * 3600
 
 
 def _spec(*args, **kwargs) -> tuple[str, CommandSpec]:
@@ -377,6 +419,58 @@ COMMAND_WHITELIST: dict[str, CommandSpec] = dict(
             timeout=15,
             description="Désactiver tous les services d'accessibilité",
         ),
+        # --- backup (phase 5): read-only on the phone ---
+        _spec(
+            "adb.du_shared",
+            Tool.ADB,
+            ("shell", "du", "-sk", SHARED_DIR),
+            requires_serial=True,
+            timeout=120,
+            description="Taille d'un dossier partagé",
+            nonzero_is_normal=True,
+        ),
+        _spec(
+            "adb.hash_shared",
+            Tool.ADB,
+            ("shell", "find", SHARED_DIR, "-type", "f", "-exec", "sha256sum", "{}", "+"),
+            requires_serial=True,
+            timeout=BACKUP_TIMEOUT,
+            description="Empreintes SHA-256 calculées sur le téléphone",
+            nonzero_is_normal=True,
+        ),
+        _spec(
+            "adb.pull_shared",
+            Tool.ADB,
+            ("pull", SHARED_DIR, LOCAL_DIR),
+            requires_serial=True,
+            timeout=BACKUP_TIMEOUT,
+            description="Copier un dossier partagé vers l'ordinateur",
+        ),
+        _spec(
+            "adb.pm_path",
+            Tool.ADB,
+            ("shell", "pm", "path", PACKAGE),
+            requires_serial=True,
+            timeout=20,
+            description="Emplacement des APK d'une application",
+            nonzero_is_normal=True,
+        ),
+        _spec(
+            "adb.sha256_apk",
+            Tool.ADB,
+            ("shell", "sha256sum", APK_PATH),
+            requires_serial=True,
+            timeout=300,
+            description="Empreinte SHA-256 d'un APK",
+        ),
+        _spec(
+            "adb.pull_apk",
+            Tool.ADB,
+            ("pull", APK_PATH, LOCAL_DIR),
+            requires_serial=True,
+            timeout=1800,
+            description="Copier un APK vers l'ordinateur",
+        ),
         _spec("fastboot.version", Tool.FASTBOOT, ("--version",), timeout=15, description="Version de fastboot"),
         _spec("fastboot.devices", Tool.FASTBOOT, ("devices",), timeout=15, description="Lister les appareils Fastboot"),
         _spec(
@@ -454,6 +548,40 @@ def _decode(data: bytes | None) -> tuple[str, bool]:
     return text, False
 
 
+class OperationCancelledError(LMSError):
+    code = "cancelled"
+    http_status = 409
+    default_message = "Opération annulée."
+    default_cause = "L'opération a été interrompue à votre demande."
+    default_action = "Relancez-la si nécessaire."
+
+
+def _run_cancellable(
+    argv: list[str], timeout: float, cancel: threading.Event, creationflags: int
+) -> subprocess.CompletedProcess:
+    process = subprocess.Popen(  # noqa: S603 - argv list from whitelist, shell=False
+        argv,
+        shell=False,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        creationflags=creationflags,
+    )
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            # communicate() may be called again after a timeout: pipes keep being drained.
+            stdout, stderr = process.communicate(timeout=0.5)
+            return subprocess.CompletedProcess(argv, process.returncode, stdout, stderr)
+        except subprocess.TimeoutExpired:
+            if cancel.is_set() or time.monotonic() > deadline:
+                process.kill()
+                process.communicate()
+                if cancel.is_set():
+                    raise OperationCancelledError() from None
+                raise
+
+
 class CommandRunner:
     """Executes whitelisted adb/fastboot commands."""
 
@@ -482,7 +610,13 @@ class CommandRunner:
         timeout: float | None = None,
         confirmed: bool = False,
         check: bool = False,
+        cancel: threading.Event | None = None,
     ) -> CommandResult:
+        """Run a whitelisted command.
+
+        With ``cancel``, the process is polled and killed as soon as the event is
+        set (long transfers); :class:`OperationCancelledError` is then raised.
+        """
         spec = COMMAND_WHITELIST.get(command)
         if spec is None:
             log.warning("Refused non-whitelisted command: %s", command)
@@ -514,15 +648,21 @@ class CommandRunner:
         log.debug("Running %s", " ".join(argv_display))
         started = time.monotonic()
         try:
-            completed = subprocess.run(  # noqa: S603 - argv list from whitelist, shell=False
-                argv,
-                shell=False,
-                stdin=subprocess.DEVNULL,
-                capture_output=True,
-                timeout=effective_timeout,
-                check=False,
-                creationflags=creationflags,
-            )
+            if cancel is None:
+                completed = subprocess.run(  # noqa: S603 - argv list from whitelist, shell=False
+                    argv,
+                    shell=False,
+                    stdin=subprocess.DEVNULL,
+                    capture_output=True,
+                    timeout=effective_timeout,
+                    check=False,
+                    creationflags=creationflags,
+                )
+            else:
+                completed = _run_cancellable(argv, effective_timeout, cancel, creationflags)
+        except OperationCancelledError:
+            log.warning("Command cancelled by the user: %s", " ".join(argv_display))
+            raise
         except subprocess.TimeoutExpired as exc:
             log.error("Command timed out after %ss: %s", effective_timeout, " ".join(argv_display))
             raise ToolTimeoutError(detail=f"{' '.join(argv_display)} timed out after {effective_timeout:.0f}s") from exc

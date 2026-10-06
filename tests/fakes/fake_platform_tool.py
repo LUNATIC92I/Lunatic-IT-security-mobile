@@ -102,6 +102,84 @@ ACCOUNTS_OUTPUT = """User UserInfo{0:Owner:c13}:
 """
 
 
+def _device_path(device: dict, remote: str) -> Path | None:
+    root = device.get("root")
+    if not root or not remote.startswith("/") or ".." in remote.split("/"):
+        return None
+    return Path(root) / remote.lstrip("/")
+
+
+def _sha256(path: Path) -> str:
+    import hashlib
+
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _storage_command(device: dict, args: list[str]) -> int | None:
+    """Shared storage / APK commands used by the backup. Returns None if not handled."""
+    if args[:3] == ["shell", "du", "-sk"] and len(args) == 4:
+        local = _device_path(device, args[3])
+        if local is None or not local.is_dir():
+            sys.stderr.write(f"du: {args[3]}: No such file or directory\n")
+            return 1
+        size = sum(f.stat().st_size for f in local.rglob("*") if f.is_file())
+        sys.stdout.write(f"{(size + 1023) // 1024}\t{args[3]}\n")
+        return 0
+    if args[:2] == ["shell", "find"] and args[3:] == ["-type", "f", "-exec", "sha256sum", "{}", "+"]:
+        local = _device_path(device, args[2])
+        if local is None or not local.is_dir():
+            sys.stderr.write(f"find: {args[2]}: No such file or directory\n")
+            return 1
+        for file in sorted(f for f in local.rglob("*") if f.is_file()):
+            remote = args[2] + "/" + file.relative_to(local).as_posix()
+            sys.stdout.write(f"{_sha256(file)}  {remote}\n")
+        return 0
+    if args[:3] == ["shell", "pm", "path"] and len(args) == 4:
+        apks = device.get("apks", {}).get(args[3])
+        if not apks:
+            return 1
+        sys.stdout.write("".join(f"package:{a}\n" for a in apks))
+        return 0
+    if args[:2] == ["shell", "sha256sum"] and len(args) == 3:
+        local = _device_path(device, args[2])
+        if local is None or not local.is_file():
+            sys.stderr.write(f"sha256sum: {args[2]}: No such file or directory\n")
+            return 1
+        sys.stdout.write(f"{_sha256(local)}  {args[2]}\n")
+        return 0
+    if args[:1] == ["pull"] and len(args) == 3:
+        import shutil
+
+        if device.get("slow_pull"):
+            time.sleep(device["slow_pull"])
+        if device.get("fail_pull"):
+            sys.stderr.write(f"adb: error: failed to copy '{args[1]}': no response: Connection reset by peer\n")
+            return 1
+        source = _device_path(device, args[1])
+        if source is None or not source.exists():
+            sys.stderr.write(f"adb: error: failed to stat remote object '{args[1]}': No such file or directory\n")
+            return 1
+        destination = Path(args[2])
+        target = destination / source.name if destination.is_dir() else destination
+        if source.is_dir():
+            shutil.copytree(source, target, dirs_exist_ok=True)
+        else:
+            shutil.copy2(source, target)
+        for rel in device.get("corrupt_pull", []):
+            victim = destination / rel
+            if victim.is_file():
+                data = bytearray(victim.read_bytes())
+                data[0] ^= 0xFF
+                victim.write_bytes(bytes(data))
+        for rel in device.get("appear_during_pull", []):
+            extra = destination / rel
+            extra.parent.mkdir(parents=True, exist_ok=True)
+            extra.write_bytes(b"new photo")
+        sys.stdout.write(f"{args[1]}: 1 file pulled, 0 skipped.\n")
+        return 0
+    return None
+
+
 def _find(devices: list[dict], serial: str) -> dict | None:
     return next((d for d in devices if d["serial"] == serial), None)
 
@@ -131,6 +209,9 @@ def _adb_device_command(config: dict, serial: str, args: list[str]) -> int:
     if state.get("global", {}).get("adb_enabled") == "0":
         sys.stderr.write(f"adb: device '{serial}' not found\n")
         return 1
+    handled = _storage_command(device, args)
+    if handled is not None:
+        return handled
     if args == ["get-state"]:
         sys.stdout.write("device\n")
     elif args == ["shell", "getprop"]:
