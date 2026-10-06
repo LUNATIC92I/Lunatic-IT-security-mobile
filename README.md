@@ -4,11 +4,11 @@ Logiciel desktop (backend Python / interface HTML-CSS-JS) pour auditer la
 sécurité des smartphones Android et guider l'installation **officielle** de
 GrapheneOS sur les Google Pixel compatibles.
 
-> **État : phases 1 à 7 livrées** — architecture, journalisation, audit,
+> **État : phases 1 à 8 livrées** — architecture, journalisation, audit,
 > exécution sécurisée d'ADB/Fastboot, diagnostic de l'environnement,
 > détection des appareils, scanner de sécurité avec score, assistant de
 > renforcement, sauvegarde vérifiée, compatibilité GrapheneOS, téléchargement
-> officiel et vérification cryptographique. L'installation guidée arrive en phase 8 (voir [docs/ROADMAP.md](docs/ROADMAP.md)).
+> officiel vérifié et assistant d'installation guidée (voir [docs/ROADMAP.md](docs/ROADMAP.md)).
 > L'interface n'affiche que ce qui fonctionne réellement.
 
 ## Sommaire
@@ -178,7 +178,7 @@ Variables `LMS_*` ou fichier `.env` à la racine (modèle : [.env.example](.env.
 | `LMS_PLATFORM_TOOLS_DIR` | — | dossier contenant adb/fastboot |
 | `LMS_LOG_LEVEL` | `INFO` | DEBUG, INFO, WARN, ERROR, CRITICAL |
 | `LMS_COMMAND_TIMEOUT` | `30` | secondes |
-| `LMS_FLASH_TIMEOUT` | `900` | secondes |
+| `LMS_FLASH_TIMEOUT` | `1800` | secondes (durée maximale du flashage) |
 | `LMS_OPEN_BROWSER` | `true` | |
 | `LMS_GRAPHENEOS_RELEASES_URL` | `https://releases.grapheneos.org` | HTTPS et hôte officiel obligatoires |
 
@@ -245,6 +245,24 @@ du contenu de l'archive (bon appareil, bonne version). Étapes affichées :
 **Download → Verification → Ready**. En cas d'échec : **Verification FAILED —
 Installation blocked** et le fichier est supprimé. Les images vérifiées peuvent
 être revérifiées ou supprimées depuis la même page.
+
+### Installation guidée (page « Installation »)
+
+L'assistant suit la procédure officielle `grapheneos.org/install/cli` en 13 étapes :
+connexion, détection du modèle, compatibilité, **avertissement « Cette opération peut
+effacer toutes les données du téléphone. »**, confirmation explicite (phrase
+`EFFACER <MODÈLE>` + cases à cocher), vérification d'ADB/Fastboot, préparation
+(déverrouillage OEM dans Android, redémarrage en mode Fastboot, déverrouillage du
+bootloader à valider sur le téléphone), image officielle, revérification d'intégrité,
+**contrôles préalables** puis « READY TO INSTALL », flashage par le script officiel
+`flash-all` de l'image vérifiée (sortie Fastboot affichée en direct), vérification et
+verrouillage du bootloader, démarrage et consignes de configuration, vérification finale
+(Verified Boot, empreinte officielle de la clé, application Auditor).
+
+Le logiciel refuse : de passer une étape sans avoir réussi la précédente, de flasher si un
+contrôle préalable échoue (deuxième appareil branché, batterie non confirmée, image
+modifiée…), de verrouiller le bootloader si le flashage n'a pas réussi, d'interrompre un
+flashage en cours. Il ne contourne jamais un verrouillage opérateur, un FRP ou un antivol.
 
 ## Avertissements
 

@@ -114,3 +114,13 @@ def phone_storage(tmp_path: Path) -> dict:
             local.parent.mkdir(parents=True, exist_ok=True)
             local.write_bytes(_os.urandom(50_000))
     return {"root": str(root), "apks": apks}
+
+
+@pytest.fixture(autouse=True)
+def test_avb_hashes(monkeypatch):
+    """Test images carry a test AVB key: declare its hash as the official one during tests."""
+    from app.graphene import compatibility
+    from tests.fakes.signing import make_avb_hash
+
+    for codename in list(compatibility.VERIFIED_BOOT_KEY_HASHES):
+        monkeypatch.setitem(compatibility.VERIFIED_BOOT_KEY_HASHES, codename, make_avb_hash(codename))

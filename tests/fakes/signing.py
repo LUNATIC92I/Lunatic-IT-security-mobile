@@ -46,14 +46,52 @@ class ReleaseSigner:
         return ("-----BEGIN SSH SIGNATURE-----\n" + "\n".join(lines) + "\n-----END SSH SIGNATURE-----\n").encode()
 
 
-def install_zip(codename: str, version: str, size: int = 300_000, extra: dict | None = None) -> bytes:
+def make_avb_key(codename: str) -> bytes:
+    return f"test verified boot key for {codename}".encode()
+
+
+def make_avb_hash(codename: str) -> str:
+    return hashlib.sha256(make_avb_key(codename)).hexdigest()
+
+
+def install_zip(
+    codename: str,
+    version: str,
+    size: int = 300_000,
+    extra: dict | None = None,
+    avb_key: bytes | None = None,
+    flash_script: str | None = None,
+) -> bytes:
     buffer = io.BytesIO()
     prefix = f"{codename}-install-{version}/"
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_STORED) as archive:
-        archive.writestr(prefix + "flash-all.sh", "#!/bin/sh\necho official script\n")
+        archive.writestr(prefix + "flash-all.sh", flash_script or fake_flash_all(codename))
         archive.writestr(prefix + "flash-all.bat", "@echo off\r\n")
         archive.writestr(prefix + "android-info.txt", f"require board={codename}\n")
         archive.writestr(prefix + "boot.img", os.urandom(size))
+        archive.writestr(prefix + "avb_pkmd.bin", avb_key if avb_key is not None else make_avb_key(codename))
         for name, data in (extra or {}).items():
             archive.writestr(name, data)
     return buffer.getvalue()
+
+
+def fake_flash_all(codename: str) -> str:
+    """Structure of the official flash-all.sh: product check, then fastboot commands (no -s)."""
+    return f"""#!/bin/sh
+set -e
+echo Available devices:
+fastboot devices -l
+product=$(fastboot getvar product 2>&1 | grep "product:" | cut -d ' ' -f 2)
+if ! [ "$product" = "{codename}" ]; then
+  echo Error: this factory image is for {codename}, but the name of connected device is $product
+  exit 1
+fi
+fastboot erase avb_custom_key
+fastboot flash avb_custom_key avb_pkmd.bin
+fastboot flash boot boot.img
+fastboot erase userdata
+echo Flashing super, 1/2
+fastboot flash super boot.img
+echo Flashing super, 2/2
+fastboot flash vbmeta boot.img
+"""

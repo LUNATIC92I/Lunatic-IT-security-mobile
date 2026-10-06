@@ -231,6 +231,7 @@ def verify_image(
     codename: str,
     version: str,
     expected_size: int | None,
+    expected_avb_key_sha256: str | None = None,
     cancel: threading.Event | None = None,
     progress=None,
 ) -> VerificationReport:
@@ -269,4 +270,23 @@ def verify_image(
         report.add("archive", True, f"Archive {codename}-install-{version} ({len(names)} fichiers, flash-all présent)")
     except SignatureFormatError as exc:
         report.add("archive", False, str(exc))
+        return report
+    if expected_avb_key_sha256:
+        actual = avb_key_sha256(zip_path, codename, version)
+        report.add(
+            "avb_key",
+            actual == expected_avb_key_sha256,
+            f"Clé Verified Boot de l'image {actual or 'absente'} "
+            f"({'identique à' if actual == expected_avb_key_sha256 else 'DIFFÉRENTE de'} l'empreinte officielle "
+            f"{expected_avb_key_sha256[:16]}…)",
+        )
     return report
+
+
+def avb_key_sha256(zip_path: Path, codename: str, version: str) -> str | None:
+    """sha256 of avb_pkmd.bin: the verified boot key that will be written to the secure element."""
+    try:
+        with zipfile.ZipFile(zip_path) as archive, archive.open(f"{codename}-install-{version}/avb_pkmd.bin") as fh:
+            return hashlib.sha256(fh.read(1024 * 1024)).hexdigest()
+    except (KeyError, zipfile.BadZipFile):
+        return None

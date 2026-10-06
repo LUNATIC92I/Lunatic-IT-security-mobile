@@ -86,7 +86,7 @@ class Settings(BaseSettings):
     )
     log_level: str = Field(default="INFO")
     command_timeout: float = Field(default=30.0, ge=1.0, le=600.0)
-    flash_timeout: float = Field(default=900.0, ge=60.0, le=3600.0)
+    flash_timeout: float = Field(default=1800.0, ge=60.0, le=7200.0)
     open_browser: bool = True
     grapheneos_releases_url: str = "https://releases.grapheneos.org"
 

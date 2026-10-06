@@ -274,3 +274,22 @@ def test_oversized_announcement_refused(manager, server):
     server.files[f"husky-install-{VERSION}.zip"] = b""
     with pytest.raises(LMSError):
         manager.start_download("husky", "stable")
+
+
+def test_signed_image_with_unofficial_avb_key_is_refused(tmp_path, signer):
+    from app.graphene.compatibility import VERIFIED_BOOT_KEY_HASHES
+
+    data = install_zip("husky", VERSION, avb_key=b"attacker key")
+    zip_path = tmp_path / "i.zip"
+    zip_path.write_bytes(data)
+    (tmp_path / "i.zip.sig").write_bytes(signer.sign(data))
+    report = verifier.verify_image(
+        zip_path,
+        tmp_path / "i.zip.sig",
+        signer.allowed_signers().decode(),
+        codename="husky",
+        version=VERSION,
+        expected_size=len(data),
+        expected_avb_key_sha256=VERIFIED_BOOT_KEY_HASHES["husky"],
+    )
+    assert not report.ok and failed(report) == ["avb_key"] and "DIFFÉRENTE" in report.steps[-1]["detail"]

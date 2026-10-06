@@ -77,3 +77,80 @@ def images(request: Request) -> dict:
 def delete_image(request: Request, body: ImageRequest) -> dict:
     _downloads(request).delete_image(body.codename, body.version)
     return {"deleted": True}
+
+
+# ------------------------------------------------- phase 8: installation wizard
+SESSION_ID = Field(pattern=r"^[0-9a-f]{32}$")
+INSTALL_ACTIONS = {
+    "tools": "check_tools",
+    "reboot_bootloader": "reboot_to_bootloader",
+    "unlock": "unlock_bootloader",
+    "prepare_image": "prepare_image",
+    "preflight": "preflight",
+    "flash": "flash",
+    "verify_result": "verify_result",
+    "lock": "lock_bootloader",
+    "reboot": "reboot",
+    "post_check": "post_check",
+}
+DESTRUCTIVE_ACTIONS = {"reboot_bootloader", "unlock", "flash", "lock", "reboot"}
+
+
+class InstallStartRequest(BaseModel):
+    device_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{16}$")
+    channel: str = Field(default="stable", pattern=r"^(stable|beta|alpha)$")
+
+
+class InstallConfirmRequest(BaseModel):
+    session_id: str = SESSION_ID
+    phrase: str = Field(max_length=60)
+    data_loss_ack: bool
+    backup_ack: bool
+
+
+class InstallActionRequest(BaseModel):
+    session_id: str = SESSION_ID
+    action: str = Field(pattern="^(" + "|".join(INSTALL_ACTIONS) + ")$")
+    confirm: bool = False
+
+
+class InstallSessionRequest(BaseModel):
+    session_id: str = SESSION_ID
+
+
+def _installer(request: Request):
+    return request.app.state.graphene.installer
+
+
+@router.post("/install")
+def install_start(request: Request, body: InstallStartRequest) -> dict:
+    """Steps 1-4: detect, check compatibility, open an installation session with the wipe warning."""
+    return _installer(request).start(body.device_id, body.channel)
+
+
+@router.post("/install/confirm")
+def install_confirm(request: Request, body: InstallConfirmRequest) -> dict:
+    return _installer(request).confirm(body.session_id, body.phrase, body.data_loss_ack, body.backup_ack)
+
+
+@router.post("/install/action")
+def install_action(request: Request, body: InstallActionRequest) -> dict:
+    if body.action in DESTRUCTIVE_ACTIONS and not body.confirm:
+        from app.core.errors import InvalidInputError
+
+        raise InvalidInputError(
+            "Confirmation requise.",
+            cause="Cette étape agit sur le téléphone (redémarrage, effacement ou flashage).",
+            action="Confirmez l'opération dans la fenêtre de confirmation.",
+        )
+    return getattr(_installer(request), INSTALL_ACTIONS[body.action])(body.session_id)
+
+
+@router.get("/install/status")
+def install_status(request: Request) -> dict:
+    return _installer(request).status()
+
+
+@router.post("/install/abandon")
+def install_abandon(request: Request, body: InstallSessionRequest) -> dict:
+    return _installer(request).abandon(body.session_id)

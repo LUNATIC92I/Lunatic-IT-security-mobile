@@ -256,3 +256,53 @@ Validé le 2026-10-06 sur les vraies images officielles `husky-install-202610020
   égale à l'annonce du serveur, espace libre ≥ 2,5 × taille.
 - Fichier `.part` conservé après interruption ou annulation, reprise par `Range`
   avec contrôle de `Content-Range`.
+
+## Modules livrés en phase 8 — Installation guidée
+
+| Fichier | Rôle |
+|---------|------|
+| `app/graphene/installer.py` | Machine à états de l'assistant (13 étapes), contrôles préalables, exécution du script officiel, verrouillage, vérification finale. |
+| `app/api/graphene_routes.py` | `POST /api/graphene/install`, `/install/confirm`, `/install/action`, `GET /install/status`, `POST /install/abandon`. |
+| `frontend/js/install.js` | Vue « Installation ». |
+
+### Étapes et garde-fous (appliqués côté serveur)
+| # | Étape | Contrôle |
+|---|-------|----------|
+| 1-3 | Connexion, modèle, compatibilité | refus si l'appareil n'est pas compatible (phase 6) |
+| 4-5 | Avertissement « Cette opération peut effacer toutes les données du téléphone. » + confirmation | phrase exacte `EFFACER <CODENAME>` + deux cases cochées |
+| 6 | ADB / Fastboot | fastboot ≥ 35.0.1 |
+| 7 | Préparation | « Déverrouillage OEM » activé (lu sur le téléphone) → `adb reboot bootloader` → `fastboot flashing unlock` (validation sur le téléphone) → `unlocked: yes` relu |
+| 8-9 | Composants | image officielle présente, revérification complète (signature, SHA-256/512, archive, clé AVB) |
+| 10 | Flashage | contrôles préalables tous verts → **READY TO INSTALL** (valable 15 min, usage unique) → script officiel |
+| 11 | Résultat | variables du bootloader relues ; `fastboot flashing lock` **uniquement si le flashage de cette session a réussi** ; `unlocked: no` relu |
+| 12 | Configuration | `fastboot reboot` + consignes (désactiver le déverrouillage OEM à la fin de l'assistant, code robuste) |
+| 13 | Vérification | via ADB si l'utilisateur le réactive : Verified Boot `yellow`, bootloader verrouillé, bon modèle ; empreinte officielle de la clé affichée pour comparaison avec l'écran de démarrage |
+
+Contrôles préalables : Device detected, Single device, Fastboot mode, Compatible Pixel
+(`getvar product`), Bootloader unlocked, Battery information available (`battery-soc-ok`),
+Correct release, SHA-256 verified, Signature verified, Fastboot available,
+Official flash script runnable, Disk space, Write permissions, User confirmation received.
+
+### Exécution du script officiel (exception justifiée au « pas de shell »)
+Le flashage exécute **le script `flash-all.sh` (ou `flash-all.bat`) contenu dans l'image
+vérifiée**, exactement comme le guide officiel : c'est la procédure publiée et signée par
+GrapheneOS, la réimplémenter divergerait de la méthode officielle. Il est lancé avec une
+liste d'arguments (`bash flash-all.sh` / `cmd /c flash-all.bat`, `shell=False`), aucune
+donnée utilisateur, le dossier extrait comme répertoire courant (extraction sûre : aucun
+chemin hors du préfixe attendu), `PATH` commençant par les platform-tools,
+`ANDROID_SERIAL` = appareil ciblé (et un seul appareil autorisé), `TMPDIR` dans le dossier
+de données (cf. remarque tmpfs du guide), délai maximal `LMS_FLASH_TIMEOUT` (1800 s) avec
+minuterie indépendante. Toute la sortie Fastboot est affichée et journalisée ; le dossier
+extrait est supprimé ensuite.
+
+En cas d'échec : verrouillage refusé, consignes (ne pas redémarrer, ne pas verrouiller,
+relancer contrôles + flashage).
+
+Validation du 2026-10-06 : le vrai `flash-all.sh` de `husky-install-2026100200.zip`
+(image officielle vérifiée) exécuté de bout en bout via l'assistant contre un Pixel simulé :
+32 opérations Fastboot dans l'ordre officiel, puis verrouillage.
+
+### Empreinte de clé Verified Boot
+`VERIFIED_BOOT_KEY_HASHES` reprend les empreintes officielles de chaque modèle. L'image doit
+contenir un `avb_pkmd.bin` dont le SHA-256 est identique (vérifié en phase 7 et avant le
+flashage) : la clé écrite dans l'élément sécurisé est donc forcément celle de GrapheneOS.

@@ -206,9 +206,13 @@ def _adb_device_command(config: dict, serial: str, args: list[str]) -> int:
             return 1
     state = _load_state(serial)
     refuse = device.get("refuse_changes", False)
-    if state.get("global", {}).get("adb_enabled") == "0":
+    if state.get("global", {}).get("adb_enabled") == "0" or state.get("mode", "adb") != "adb":
         sys.stderr.write(f"adb: device '{serial}' not found\n")
         return 1
+    if args == ["reboot", "bootloader"]:
+        state["mode"] = "fastboot"
+        _save_state(serial, state)
+        return 0
     handled = _storage_command(device, args)
     if handled is not None:
         return handled
@@ -298,6 +302,8 @@ def _adb(args: list[str], scenario: str) -> int:
         for device in config.get("adb", []):
             if _load_state(device["serial"]).get("global", {}).get("adb_enabled") == "0":
                 continue  # adbd stopped: the phone vanished from adb
+            if _load_state(device["serial"]).get("mode", "adb") != "adb":
+                continue  # rebooted to the bootloader (or powered off)
             if device["state"] == "no permissions":
                 lines.append(
                     f"{device['serial']}       no permissions (missing udev rules? user is in the plugdev group); "
@@ -316,29 +322,126 @@ def _adb(args: list[str], scenario: str) -> int:
     return 1
 
 
+def _fastboot_devices(config: dict) -> list[dict]:
+    """Devices currently in fastboot mode (declared as such, or rebooted there from adb)."""
+    devices = [d for d in config.get("fastboot", []) if _load_state(d["serial"]).get("mode", "fastboot") == "fastboot"]
+    devices += [
+        {**d, "state": "fastboot"} for d in config.get("adb", []) if _load_state(d["serial"]).get("mode") == "fastboot"
+    ]
+    return devices
+
+
+def _fb_var(device: dict, state: dict, name: str) -> str | None:
+    profile = device.get("profile", "pixel8pro_stock")
+    base = {}
+    for line in FASTBOOT_GETVAR.get(profile, FASTBOOT_GETVAR["pixel8pro_stock"]).splitlines():
+        line = line.replace("(bootloader) ", "")
+        if ":" in line:
+            key, _, value = line.partition(":")
+            base[key.strip()] = value.strip()
+    base.setdefault("slot-count", "2")
+    base.setdefault("max-download-size", "0xf900000")
+    base["battery-soc-ok"] = device.get("battery_ok", "yes")
+    base.update(state.get("fastboot_vars", {}))
+    return base.get(name)
+
+
 def _fastboot(args: list[str], scenario: str) -> int:
     config = _devices()
     if args == ["--version"]:
         version = "34.0.5-10900879" if scenario == "old_fastboot" else "35.0.2-12147458"
         sys.stdout.write(f"fastboot version {version}\nInstalled as /fake/fastboot\n")
         return 0
-    if args == ["devices"]:
-        for device in config.get("fastboot", []):
+    devices = _fastboot_devices(config)
+    if args in (["devices"], ["devices", "-l"]):
+        for device in devices:
             sys.stdout.write(f"{device['serial']}\t{device['state']}\n")
         return 0
-    if len(args) == 4 and args[0] == "-s" and args[2:] == ["getvar", "all"]:
-        device = _find(config.get("fastboot", []), args[1])
-        if device is None:
-            sys.stderr.write("< waiting for any device >\n")
-            time.sleep(30)
+    if args and args[0] == "-s":
+        serial, rest = args[1], args[2:]
+    else:  # like the official flash-all script: target chosen by ANDROID_SERIAL (or the only device)
+        serial = os.environ.get("ANDROID_SERIAL") or (devices[0]["serial"] if len(devices) == 1 else "")
+        rest = args
+    device = next((d for d in devices if d["serial"] == serial), None)
+    if device is None:
+        sys.stderr.write("< waiting for any device >\n")
+        time.sleep(30)
+        return 1
+    state = _load_state(serial)
+    done = "Finished. Total time: 0.012s\n"
+    # Options used by the official flash-all.sh (--slot=other, --disable-super-optimization, ...).
+    options = [a for a in rest if a.startswith("--")]
+    rest = [a for a in rest if not a.startswith("--")]
+    for option in options:
+        if option.startswith("--set-active="):
+            slot = option.split("=", 1)[1]
+            current = _fb_var(device, state, "current-slot") or "a"
+            new_slot = {"a": "b", "b": "a"}[current] if slot == "other" else slot
+            state.setdefault("fastboot_vars", {})["current-slot"] = new_slot
+            _save_state(serial, state)
+            sys.stderr.write(f"Setting current slot to '{new_slot}'  OKAY [  0.050s]\n" + done)
+            if not rest:
+                return 0
+    if rest in (["reboot-bootloader"], ["oem", "uart", "disable"], ["snapshot-update", "cancel"]):
+        sys.stderr.write("OKAY [  0.100s]\n" + done)
+        return 0
+    if len(rest) == 2 and rest[0] == "update":
+        if not Path(rest[1]).is_file():
+            sys.stderr.write(f"fastboot: error: cannot open '{rest[1]}'\n")
             return 1
+        sys.stderr.write("Checking 'product'  OKAY\n" + done)
+        return 0
+    if rest == ["getvar", "all"]:
         sys.stderr.write(FASTBOOT_GETVAR[device.get("profile", "pixel8pro_stock")])
         return 0
-    if len(args) == 4 and args[0] == "-s" and args[2:] == ["flashing", "get_unlock_ability"]:
-        device = _find(config.get("fastboot", []), args[1])
-        if device is None:
-            return 1
+    if len(rest) == 2 and rest[0] == "getvar":
+        value = _fb_var(device, state, rest[1])
+        sys.stderr.write(
+            (
+                f"{rest[1]}: {value}\n"
+                if value is not None
+                else f"getvar:{rest[1]} FAILED (remote: 'GetVar Variable Not found')\n"
+            )
+            + done
+        )
+        return 0 if value is not None else 1
+    if rest == ["flashing", "get_unlock_ability"]:
         sys.stderr.write(f"(bootloader) get_unlock_ability: {device.get('unlock_ability', 1)}\nOKAY [  0.001s]\n")
+        return 0
+    if rest in (["flashing", "unlock"], ["flashing", "lock"]):
+        if device.get("refuse_" + rest[1]):
+            sys.stderr.write(
+                f"FAILED (remote: '{rest[1].capitalize()} rejected by user')\nfastboot: error: Command failed\n"
+            )
+            return 1
+        state.setdefault("fastboot_vars", {})["unlocked"] = "yes" if rest[1] == "unlock" else "no"
+        _save_state(serial, state)
+        sys.stderr.write("OKAY [ 12.345s]\n" + done)
+        return 0
+    if rest == ["reboot"]:
+        state["mode"] = "adb" if device.get("adb_after_reboot") else "off"
+        _save_state(serial, state)
+        sys.stderr.write("Rebooting  OKAY [  0.001s]\n" + done)
+        return 0
+    if rest and rest[0] in ("flash", "erase"):
+        partition = rest[1]
+        if partition == device.get("flash_fail_on"):
+            sys.stderr.write(
+                f"Sending '{partition}'  FAILED (remote: 'Partition flashing failed')\n"
+                "fastboot: error: Command failed\n"
+            )
+            return 1
+        if rest[0] == "flash" and not Path(rest[2]).is_file():
+            sys.stderr.write(f"fastboot: error: cannot load '{rest[2]}': No such file or directory\n")
+            return 1
+        state.setdefault("flashed", []).append(partition)
+        _save_state(serial, state)
+        if device.get("flash_sleep"):
+            time.sleep(device["flash_sleep"])
+        verb = "Erasing" if rest[0] == "erase" else "Writing"
+        sys.stderr.write(
+            f"Sending '{partition}' (64 KB)  OKAY [  0.010s]\n{verb} '{partition}'  OKAY [  0.020s]\n" + done
+        )
         return 0
     sys.stderr.write(f"fastboot: unknown command {' '.join(args)}\n")
     return 1

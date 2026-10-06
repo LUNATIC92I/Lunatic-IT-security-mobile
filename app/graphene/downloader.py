@@ -35,6 +35,7 @@ from app.core.errors import InvalidInputError, LMSError
 from app.core.platform_tools import OperationCancelledError
 from app.core.safety import safe_join
 from app.graphene import verifier
+from app.graphene.compatibility import VERIFIED_BOOT_KEY_HASHES
 from app.graphene.releases import VERSION_RE, ReleaseClient, validate_channel, validate_codename
 from app.logging_config import get_logger
 
@@ -358,6 +359,7 @@ class DownloadManager:
             codename=codename,
             version=version,
             expected_size=expected,
+            expected_avb_key_sha256=VERIFIED_BOOT_KEY_HASHES.get(codename),
             cancel=self._cancel,
             progress=lambda n: self._update(verify_done=n),
         )

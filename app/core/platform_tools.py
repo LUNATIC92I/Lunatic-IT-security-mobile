@@ -191,6 +191,11 @@ SHARED_DIR = Arg("folder", re.escape(SHARED_STORAGE_ROOT) + "/(?:" + "|".join(SH
 APK_PATH = Arg("apk", r"/data/app/[A-Za-z0-9._~=+/-]+\.apk", max_length=400)
 LOCAL_DIR = LocalPathArg("destination", r".+", max_length=4096)
 BACKUP_TIMEOUT = 6 * 3600
+FASTBOOT_VAR = Arg(
+    "var",
+    r"product|unlocked|battery-soc-ok|battery-voltage|current-slot|slot-count|is-userspace|secure",
+    max_length=20,
+)
 
 
 def _spec(*args, **kwargs) -> tuple[str, CommandSpec]:
@@ -478,6 +483,51 @@ COMMAND_WHITELIST: dict[str, CommandSpec] = dict(
             requires_serial=True,
             timeout=20,
             description="Le bootloader accepte-t-il le déverrouillage ? (lecture)",
+        ),
+        # --- GrapheneOS installation (phase 8) ---
+        _spec(
+            "adb.reboot_bootloader",
+            Tool.ADB,
+            ("reboot", "bootloader"),
+            requires_serial=True,
+            mutating=True,
+            timeout=30,
+            description="Redémarrer en mode bootloader (Fastboot)",
+        ),
+        _spec(
+            "fastboot.getvar",
+            Tool.FASTBOOT,
+            ("getvar", FASTBOOT_VAR),
+            requires_serial=True,
+            timeout=20,
+            description="Lire une variable du bootloader",
+        ),
+        _spec(
+            "fastboot.flashing_unlock",
+            Tool.FASTBOOT,
+            ("flashing", "unlock"),
+            requires_serial=True,
+            destructive=True,
+            timeout=240,
+            description="Déverrouiller le bootloader (EFFACE toutes les données ; confirmation sur le téléphone)",
+        ),
+        _spec(
+            "fastboot.flashing_lock",
+            Tool.FASTBOOT,
+            ("flashing", "lock"),
+            requires_serial=True,
+            destructive=True,
+            timeout=240,
+            description="Verrouiller le bootloader (EFFACE toutes les données ; confirmation sur le téléphone)",
+        ),
+        _spec(
+            "fastboot.reboot",
+            Tool.FASTBOOT,
+            ("reboot",),
+            requires_serial=True,
+            mutating=True,
+            timeout=30,
+            description="Démarrer le système",
         ),
         _spec("fastboot.version", Tool.FASTBOOT, ("--version",), timeout=15, description="Version de fastboot"),
         _spec("fastboot.devices", Tool.FASTBOOT, ("devices",), timeout=15, description="Lister les appareils Fastboot"),

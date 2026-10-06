@@ -360,3 +360,6 @@ CONNECTIVITY = """Current Networks:
   NetworkAgentInfo{network{101}  handle{1}  ni{MOBILE[LTE] CONNECTED extra: } lp{{InterfaceName: rmnet0 DnsAddresses: [ /10.10.10.10 ]}}  nc{[ Transports: CELLULAR Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VPN&VALIDATED]}}
 Active default network: 100
 """
+
+PROFILES["pixel8pro_oem_unlock"] = {**PROFILES["pixel8pro_stock"], "sys.oem_unlock_allowed": "1"}
+SCAN_DATA["pixel8pro_oem_unlock"] = SCAN_DATA["grapheneos"]

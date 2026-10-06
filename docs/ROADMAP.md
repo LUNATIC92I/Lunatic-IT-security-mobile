@@ -9,7 +9,7 @@
 | 5 | Backup : stockage partagé + APK, SHA-256 téléphone ↔ ordinateur, progression, annulation, revérification | ✅ Livrée |
 | 6 | Compatibilité GrapheneOS : catalogue officiel, versions en direct depuis releases.grapheneos.org, vérifications appareil + ordinateur | ✅ Livrée |
 | 7 | Téléchargement officiel avec reprise + vérification cryptographique (signature SSHSIG GrapheneOS, SHA-256/512, archive) | ✅ Livrée |
-| 8 | Assistant d'installation (preflight checks, flash) | À faire |
+| 8 | Assistant d'installation en 13 étapes : confirmation, préparation officielle, contrôles préalables, script officiel flash-all, verrouillage, vérification | ✅ Livrée |
 | 9 | Frontend complet (toutes les vues) | À faire |
 | 10 | Tests (scénarios unauthorized/offline/multi-appareils, interruption…) | À faire |
 | 11 | Documentation complète | À faire |
