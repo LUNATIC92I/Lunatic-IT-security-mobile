@@ -70,7 +70,9 @@
           + result.after_observed
           + (verified ? "" : " Vérifiez ce réglage manuellement sur le téléphone.")));
       card.classList.add("done");
-      button.textContent = verified ? "Appliqué" : "À vérifier";
+      button.textContent = verified ? "Appliqué" : "Réessayer…";
+      // Not confirmed: allow another attempt (the server refuses it if the phone changed meanwhile).
+      if (!verified) button.disabled = false;
       toast(verified ? "Correction vérifiée" : "Correction non vérifiée", item.title, verified ? "ok" : "warn");
       if (result.ends_adb_session && verified) {
         state.selectedDeviceId = null;
@@ -119,6 +121,12 @@
       $("#hardening-actions").replaceChildren(...(sections.length ? sections
         : [el("div", { class: "card empty-card", text: "Aucune correction automatique n'est nécessaire. Consultez les vérifications manuelles ci-dessous." })]));
       renderChecklist(plan.checklist);
+      // What could not be read on the phone: the plan may be missing corrections for these points.
+      if (plan.limitations && plan.limitations.length) {
+        $("#hardening-error").replaceChildren(el("div", { class: "card" },
+          el("div", { class: "lbl", text: "LECTURES IMPOSSIBLES (le plan peut être incomplet)" }),
+          el("ul", { class: "muted small" }, ...plan.limitations.map((text) => el("li", { text })))));
+      }
     } catch (error) {
       $("#hardening-actions").replaceChildren();
       $("#hardening-error").replaceChildren(errorBox(error));

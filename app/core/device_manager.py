@@ -244,6 +244,10 @@ class DeviceManager:
         )
 
     def status(self) -> DeviceStatus:
+        return self._enumerate()[0]
+
+    def _enumerate(self) -> tuple[DeviceStatus, dict[str, tuple[Transport, str]]]:
+        """One enumeration: the status and the matching device_id -> serial registry."""
         connections: list[DeviceConnection] = []
         registry: dict[str, tuple[Transport, str]] = {}
         adb_error = fastboot_error = None
@@ -282,7 +286,7 @@ class DeviceManager:
         else:
             summary = "multiple"
             message = f"{len(connections)} appareils détectés ({len(ready)} prêt(s)) : sélectionnez celui à analyser."
-        return DeviceStatus(
+        status = DeviceStatus(
             adb_available=adb_error is None,
             fastboot_available=fastboot_error is None,
             adb_error=adb_error,
@@ -292,6 +296,7 @@ class DeviceManager:
             ready_count=len(ready),
             message=message,
         )
+        return status, registry
 
     def _track_changes(self, connections: list[DeviceConnection]) -> None:
         current = {c.device_id: (c.transport, c.state, c.serial_masked) for c in connections}
@@ -320,9 +325,9 @@ class DeviceManager:
         """Return the targeted connection and its serial (fresh enumeration)."""
         if device_id is not None and not DEVICE_ID_PATTERN.fullmatch(device_id):
             raise InvalidInputError(detail="device_id must be 16 lowercase hex characters")
-        status = self.status()
-        with self._lock:
-            registry = dict(self._registry)
+        # Use this enumeration's own registry: a concurrent status() call (UI polling) may
+        # already have replaced the shared one without this device.
+        status, registry = self._enumerate()
         if device_id is None:
             ready = [c for c in status.devices if c.ready]
             if len(ready) > 1:

@@ -36,6 +36,7 @@ import os
 import re
 import secrets
 import shutil
+import signal
 import subprocess
 import threading
 import time
@@ -79,6 +80,7 @@ STEPS = [
 ]
 WARNING_TEXT = "Cette opération peut effacer toutes les données du téléphone."
 PREFLIGHT_TTL = 15 * 60
+MAX_EXTRACT_RATIO = 4  # disk budget assumes ~1.5x (EXTRACTION_FACTOR 2.5 = zip + extraction); wide margin
 DEVICE_WAIT = 90
 _FINISHED_RE = re.compile(r"^Finished\. Total time", re.MULTILINE)
 
@@ -108,6 +110,35 @@ USB_LOST_PATTERNS = (
     "usb_read failed",
     "remote: 'unknown command'",
 )
+
+
+def kill_process_tree(process: subprocess.Popen, windows: bool) -> None:
+    """Stop the flash script AND the fastboot processes it started.
+
+    Killing only the script would leave a hung fastboot (e.g. "waiting for any
+    device" after the cable was pulled) holding the output pipe open.
+    """
+    try:
+        if windows:
+            # taskkill ships with Windows; /T stops the whole tree. Absolute path (no PATH lookup),
+            # fixed argv, no shell.
+            taskkill = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "taskkill.exe")
+            subprocess.run(  # noqa: S603
+                [taskkill, "/T", "/F", "/PID", str(process.pid)],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=15,
+                check=False,
+            )
+        else:
+            os.killpg(process.pid, signal.SIGKILL)  # the script leads its own session/group
+    except (OSError, subprocess.SubprocessError):
+        pass
+    try:
+        process.kill()
+    except OSError:
+        pass
 
 
 def diagnose_flash_failure(log_lines: list[str]) -> str | None:
@@ -146,6 +177,10 @@ def getvar(output: str, name: str) -> str | None:
 def safe_extract(zip_path: Path, target: Path, prefix: str) -> Path:
     """Extract the verified archive, refusing any entry outside ``prefix``."""
     with zipfile.ZipFile(zip_path) as archive:
+        # Defence in depth (the archive is already signature-checked): refuse a zip bomb.
+        total = sum(info.file_size for info in archive.infolist())
+        if total > MAX_EXTRACT_RATIO * max(zip_path.stat().st_size, 1):
+            raise InvalidInputError(detail=f"archive expands to {total} bytes, refused")
         for info in archive.infolist():
             name = info.filename
             if not name.startswith(prefix) or ".." in name.split("/") or name.startswith("/"):
@@ -441,6 +476,10 @@ class GrapheneInstaller:
         self._require(session, "confirmation")
         with self._step(session, "download"):
             release = self.releases.release(session.codename, session.channel, with_size=False)
+            # Any (re)preparation invalidates READY TO INSTALL; a new version also voids a previous flash.
+            session.preflight_ok_at = None
+            if release.version != session.version:
+                session.flash_ok = False
             session.version = release.version
             if read_verified(self.settings, session.codename, release.version) is None:
                 raise InstallStateError(
@@ -476,6 +515,18 @@ class GrapheneInstaller:
     def preflight(self, session_id: str) -> dict:
         session = self._session(session_id)
         self._require(session, "confirmation", "tools", "prepare", "download", "verify")
+        # Exclusive with the flash: no fastboot command may run in parallel with flash-all,
+        # and a preflight must never re-validate READY TO INSTALL behind a running flash.
+        with self._lock:
+            if session.busy:
+                raise InstallBusyError()
+            session.busy = "preflight"
+        try:
+            return self._run_preflight(session)
+        finally:
+            session.busy = None
+
+    def _run_preflight(self, session: InstallSession) -> dict:
         checks: list[dict] = []
 
         def add(label: str, ok: bool, detail: str) -> None:
@@ -642,7 +693,13 @@ class GrapheneInstaller:
             env["TMPDIR"] = str(workdir)
             argv = self._interpreter()
             session.flash_stage = "Exécution du script officiel " + script.name
-            creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if self.settings.host_os is HostOS.WINDOWS else 0
+            windows = self.settings.host_os is HostOS.WINDOWS
+            # Own process group: the watchdog must be able to stop fastboot too, not only the script.
+            creationflags = (
+                getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+                if windows
+                else 0
+            )
             process = subprocess.Popen(  # noqa: S603 - official signed script, argv list, shell=False
                 argv,
                 cwd=script_dir,
@@ -652,12 +709,13 @@ class GrapheneInstaller:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 creationflags=creationflags,
+                start_new_session=not windows,
             )
             timed_out = threading.Event()
 
             def watchdog() -> None:
                 timed_out.set()
-                process.kill()
+                kill_process_tree(process, windows)
 
             timer = threading.Timer(self.settings.flash_timeout, watchdog)
             timer.daemon = True
@@ -672,8 +730,14 @@ class GrapheneInstaller:
                 if _FINISHED_RE.match(line):
                     finished += 1
                     session.flash_progress = min(99, round(finished * 100 / total))
-            code = process.wait(timeout=60)
-            timer.cancel()
+            try:
+                code = process.wait(timeout=60)
+            except subprocess.TimeoutExpired:
+                kill_process_tree(process, windows)
+                code = process.wait(timeout=10)
+            finally:
+                timer.cancel()
+                process.stdout.close()
             if timed_out.is_set():
                 diagnosis = diagnose_flash_failure(session.flash_log)
                 raise FlashError(
@@ -832,14 +896,14 @@ class GrapheneInstaller:
     def run_exclusive(self, func: Callable[[], T]) -> T:
         """Run ``func`` while no installer operation runs, blocking new ones meanwhile.
 
-        Used by the temporary-files purge: the flash workdir lives in the temp
-        directory and must never be removed under a running flash.
+        Used by the temporary-files purge (the flash workdir lives in tmp/) and by
+        the image operations (the flash reads the verified image).
         """
         with self._lock:
             if self.session and self.session.busy:
                 raise InstallBusyError(
-                    "Une opération d'installation utilise actuellement le dossier temporaire.",
-                    action="Attendez la fin de l'opération en cours puis réessayez.",
+                    "Une étape d'installation est en cours et utilise l'image ou le dossier temporaire.",
+                    action="Attendez la fin de l'étape en cours puis réessayez.",
                 )
             return func()
 

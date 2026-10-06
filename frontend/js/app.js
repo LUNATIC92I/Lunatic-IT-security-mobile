@@ -99,8 +99,22 @@ const LMS = (() => {
     setTimeout(() => node.remove(), timeout);
   }
 
+  /* Server errors already carry ERREUR / CAUSE / ACTION. Anything else is an
+   * unexpected interface error: never show the raw exception as the message. */
+  function errorPayload(error) {
+    if (error instanceof ApiError) return error.payload;
+    console.error(error);
+    return {
+      code: "interface_error",
+      message: "L'interface a rencontré une erreur inattendue.",
+      cause: "Réponse du serveur dans un format imprévu, ou erreur de l'interface.",
+      action: "Rechargez la page. Si le problème persiste, exportez les logs (page Logs) et signalez-le.",
+      detail: String((error && error.message) || error),
+    };
+  }
+
   function errorBox(error) {
-    const payload = error instanceof ApiError ? error.payload : { message: String(error.message || error) };
+    const payload = errorPayload(error);
     return el("div", { class: "error-box", role: "alert" },
       el("div", { class: "row" }, el("span", { class: "lbl", text: "ERREUR" }), payload.message),
       payload.cause ? el("div", { class: "row" }, el("span", { class: "lbl", text: "CAUSE POSSIBLE" }), payload.cause) : null,
@@ -109,8 +123,8 @@ const LMS = (() => {
   }
 
   function notifyError(error) {
-    const payload = error instanceof ApiError ? error.payload : { message: String(error) };
-    toast(payload.message, payload.action || "", "fail", 9000);
+    const payload = errorPayload(error);
+    toast(payload.message, [payload.cause, payload.action].filter(Boolean).join(" — "), "fail", 9000);
   }
 
   // ------------------------------------------------------------------ modal
@@ -305,7 +319,8 @@ const LMS = (() => {
       badge.className = "badge fail";
       badge.textContent = "Erreur";
       $("#device-card-value").textContent = "Indisponible";
-      $("#device-card-sub").textContent = error.payload ? error.payload.message : String(error);
+      const payload = errorPayload(error);
+      $("#device-card-sub").textContent = payload.message + " " + (payload.action || "");
     }
   }
 
@@ -321,7 +336,8 @@ const LMS = (() => {
         + " problème(s) critique(s) ou élevé(s) · " + new Date(report.created_at).toLocaleString();
     } catch (error) {
       if (!(error instanceof ApiError && error.payload.code === "report_not_found")) {
-        $("#score-card-sub").textContent = error.payload ? error.payload.message : String(error);
+        const payload = errorPayload(error);
+        $("#score-card-sub").textContent = payload.message + " " + (payload.action || "");
       }
     }
   }
@@ -386,6 +402,7 @@ const LMS = (() => {
     const [cls, text] = {
       live: ["ok", "En direct"], polling: ["warn", "Rafraîchissement 2 s"],
       paused: ["neutral", "En pause"], offline: ["fail", "Serveur injoignable"], idle: ["neutral", "Hors ligne"],
+      reconnecting: ["neutral", "Reconnexion…"],
     }[kind];
     badge.className = "badge " + cls;
     badge.textContent = text;
@@ -474,8 +491,10 @@ const LMS = (() => {
     const source = new EventSource("/api/logs/stream?since=" + (logState.boot ? logState.lastId : 0) + levelParam());
     logState.source = source;
     let opened = false;
+    let failures = 0; // consecutive errors since the last successful (re)connection
     source.addEventListener("open", () => {
       opened = true;
+      failures = 0;
       if (!logState.paused) setLogConnection("live");
       showEmptyLogs();
     });
@@ -492,7 +511,10 @@ const LMS = (() => {
           logState.timer = setInterval(pollLogs, 2000);
         }
       } else {
-        setLogConnection("offline"); // EventSource retries on its own
+        // The server ends each stream after a few minutes and EventSource reconnects by itself:
+        // only report an outage when reconnection itself fails.
+        failures += 1;
+        if (!logState.paused) setLogConnection(failures > 1 ? "offline" : "reconnecting");
       }
     });
   }
@@ -650,7 +672,11 @@ const LMS = (() => {
     registerView("settings", { title: "Paramètres", onEnter: loadSettings });
 
     $("#env-refresh").addEventListener("click", loadEnvironment);
-    $("#log-level").addEventListener("change", resetLogs);
+    $("#log-level").addEventListener("change", () => {
+      // The export follows the level filter shown on screen.
+      $("#log-export").href = "/api/logs/export" + ($("#log-level").value ? "?level=" + $("#log-level").value : "");
+      resetLogs();
+    });
     $("#log-filter").addEventListener("input", applyLogFilter);
     $("#log-clear").addEventListener("click", () => { $("#log-view").replaceChildren(); updateLogCount(); });
     $("#log-pause").addEventListener("click", togglePause);
@@ -682,5 +708,5 @@ const LMS = (() => {
   }
 
   document.addEventListener("DOMContentLoaded", init);
-  return { api, el, toast, errorBox, notifyError, registerView, confirmDialog, formatBytes, hbars, attachTooltip, state, ApiError };
+  return { api, el, toast, errorBox, errorPayload, notifyError, registerView, confirmDialog, formatBytes, hbars, attachTooltip, state, ApiError };
 })();

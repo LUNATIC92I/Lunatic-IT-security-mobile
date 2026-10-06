@@ -130,10 +130,16 @@ def _storage_command(device: dict, args: list[str]) -> int | None:
         if local is None or not local.is_dir():
             sys.stderr.write(f"find: {args[2]}: No such file or directory\n")
             return 1
+        unreadable = set(device.get("hash_unreadable", []))  # paths relative to shared storage
+        code = 0
         for file in sorted(f for f in local.rglob("*") if f.is_file()):
             remote = args[2] + "/" + file.relative_to(local).as_posix()
+            if any(remote.endswith("/" + rel) for rel in unreadable):
+                sys.stderr.write(f"sha256sum: {remote}: Permission denied\n")
+                code = 1
+                continue
             sys.stdout.write(f"{_sha256(file)}  {remote}\n")
-        return 0
+        return code
     if args[:3] == ["shell", "pm", "path"] and len(args) == 4:
         apks = device.get("apks", {}).get(args[3])
         if not apks:

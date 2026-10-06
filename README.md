@@ -485,8 +485,10 @@ dans les Paramètres d'Android.
    jamais de copie partielle présentée comme valable.
 5. Résultat : **« SHA-256 vérifié »** uniquement si chaque fichier copié est
    identique à l'original (empreinte calculée sur le téléphone puis sur
-   l'ordinateur). Sinon, la liste précise des anomalies est affichée (fichier
-   différent, manquant, modifié pendant la sauvegarde).
+   l'ordinateur) et qu'aucun fichier n'a été ignoré. Sinon la sauvegarde est
+   marquée **« Incomplète »** avec la liste précise des anomalies : fichier
+   différent, manquant, illisible sur le téléphone, ou apparu pendant la
+   sauvegarde (copié mais non certifié, absent de `SHA256SUMS`).
 
 Chaque sauvegarde contient `SHA256SUMS` et `backup.json` (sans numéro de
 série). Revérification à tout moment depuis l'interface (**Vérifier
@@ -785,7 +787,7 @@ interface d'administration :
 | Menace | Protection |
 |--------|------------|
 | Accès depuis le réseau | écoute sur l'adresse de bouclage uniquement ; une autre adresse est refusée au démarrage |
-| Site web malveillant (DNS rebinding, CSRF) | en-tête `Host` filtré, jeton `X-LMS-Token` par lancement, contrôle de l'`Origin`, aucun en-tête CORS |
+| Site web malveillant (DNS rebinding, CSRF) | en-tête `Host` filtré, jeton `X-LMS-Token` par lancement, contrôle de l'`Origin`, requêtes marquées « cross-site » par le navigateur refusées, aucun en-tête CORS |
 | Injection de commande | liste blanche, arguments validés, jamais de shell |
 | Données hostiles venant du téléphone (XSS) | `textContent` uniquement, CSP `default-src 'self'` sans script en ligne |
 | Image GrapheneOS altérée | signature avec clé épinglée, empreintes, contenu de l'archive, revérification avant flashage |

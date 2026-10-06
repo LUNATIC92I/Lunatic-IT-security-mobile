@@ -46,9 +46,15 @@ def _downloads(request: Request):
     return request.app.state.graphene.downloads
 
 
+def _while_no_install_step(request: Request, func):
+    """The flash reads the verified image: never replace, re-verify or delete it meanwhile."""
+    return request.app.state.graphene.installer.run_exclusive(func)
+
+
 @router.post("/download", status_code=202)
 def download(request: Request, body: DownloadRequest) -> dict:
     """Download the official image for this device/channel (version chosen by the official server)."""
+    _while_no_install_step(request, lambda: None)
     return _downloads(request).start_download(body.codename, body.channel)
 
 
@@ -65,6 +71,7 @@ def download_cancel(request: Request) -> dict:
 @router.post("/verify", status_code=202)
 def verify(request: Request, body: ImageRequest) -> dict:
     """Re-run the full cryptographic verification of a downloaded image."""
+    _while_no_install_step(request, lambda: None)
     return _downloads(request).start_verify(body.codename, body.version)
 
 
@@ -75,7 +82,7 @@ def images(request: Request) -> dict:
 
 @router.post("/images/delete")
 def delete_image(request: Request, body: ImageRequest) -> dict:
-    _downloads(request).delete_image(body.codename, body.version)
+    _while_no_install_step(request, lambda: _downloads(request).delete_image(body.codename, body.version))
     return {"deleted": True}
 
 

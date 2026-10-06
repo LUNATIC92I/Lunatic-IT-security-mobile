@@ -90,13 +90,19 @@ def create_app(settings: Settings | None = None, *, console_logging: bool = True
 
     @app.middleware("http")
     async def security_middleware(request: Request, call_next):
+        # Browsers tag requests triggered by another site (<img>, <script>, links): even a read-only
+        # GET must not make the computer talk to the phone on behalf of a web page.
+        if request.url.path.startswith("/api/") and request.headers.get("sec-fetch-site") == "cross-site":
+            log.warning("Rejected cross-site %s %s", request.method, request.url.path)
+            return _error_response(CSRFError(detail="cross-site request"))
         if request.url.path.startswith("/api/") and request.method not in SAFE_METHODS:
             origin = request.headers.get("origin")
             token = request.headers.get(CSRF_HEADER, "")
             if origin is not None and origin not in allowed_origins:
                 log.warning("Rejected %s %s from origin %s", request.method, request.url.path, origin)
                 return _error_response(CSRFError(detail="foreign origin"))
-            if not secrets.compare_digest(token, app.state.csrf_token):
+            # Compare bytes: a non-ASCII header value must be a 403, not a TypeError (500).
+            if not secrets.compare_digest(token.encode("utf-8", "surrogateescape"), app.state.csrf_token.encode()):
                 log.warning("Rejected %s %s: missing or invalid session token", request.method, request.url.path)
                 return _error_response(CSRFError(detail="missing or invalid session token"))
         response = await call_next(request)

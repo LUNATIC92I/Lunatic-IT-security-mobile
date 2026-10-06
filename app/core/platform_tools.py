@@ -188,7 +188,8 @@ SHARED_FOLDERS = (
     "Notifications",
 )
 SHARED_DIR = Arg("folder", re.escape(SHARED_STORAGE_ROOT) + "/(?:" + "|".join(SHARED_FOLDERS) + ")", max_length=64)
-APK_PATH = Arg("apk", r"/data/app/[A-Za-z0-9._~=+/-]+\.apk", max_length=400)
+# Value comes from "pm path" (phone output): no ".." segment may escape /data/app.
+APK_PATH = Arg("apk", r"/data/app/(?!.*(?:^|/)\.\.(?:/|$))[A-Za-z0-9._~=+/-]+\.apk", max_length=400)
 LOCAL_DIR = LocalPathArg("destination", r".+", max_length=4096)
 BACKUP_TIMEOUT = 6 * 3600
 FASTBOOT_VAR = Arg(

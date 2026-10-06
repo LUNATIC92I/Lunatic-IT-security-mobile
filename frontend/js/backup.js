@@ -82,8 +82,9 @@
     if (free === null || free === undefined) {
       try {
         freeBytes = (await api.get("/api/backup/browse?path=" + encodeURIComponent(path))).free_bytes;
-      } catch {
+      } catch (error) {
         freeBytes = null;
+        notifyError(error); // the free space cannot be checked: say why
       }
     }
     updateSummary();
@@ -114,7 +115,7 @@
         return el("tr", {},
           el("td", {}, el("div", { class: "app-name", text: b.name }), el("div", { class: "muted small", text: b.created_at ? new Date(b.created_at).toLocaleString() : "" })),
           el("td", { text: [b.device.model, b.device.serial_masked].filter(Boolean).join(" · ") }),
-          el("td", { text: (b.folders || []).join(", ") + (b.include_apks ? " + APK" : "") + " · " + b.files + " fichiers · " + formatBytes(b.bytes) }),
+          el("td", { text: (b.folders || []).join(", ") + (b.include_apks ? " + APK" : "") + " · " + (b.files ?? "—") + " fichiers · " + formatBytes(b.bytes) }),
           el("td", {}, el("span", { class: "badge " + (b.status === "verified" ? "ok" : "warn"), text: b.status === "verified" ? "Vérifiée" : "Incomplète" })),
           cell);
       }) : [el("tr", {}, el("td", { colspan: 5, class: "muted", text: "Aucune sauvegarde dans ce dossier." }))]));
@@ -152,7 +153,7 @@
         el("p", {}, "Dossier : ", el("code", { text: s.backup_path })),
         list("Fichiers différents après transfert (non certifiés)", s.mismatches),
         list("Fichiers manquants", s.missing),
-        list("Fichiers apparus pendant la sauvegarde (non vérifiés)", s.changed_during_backup),
+        list("Fichiers copiés mais non certifiés (apparus pendant la sauvegarde ou nom illisible pour sha256sum)", s.changed_during_backup),
         list("Erreurs", s.errors),
         list("Remarques", s.notes)));
       toast(ok ? "Sauvegarde vérifiée" : "Sauvegarde incomplète", s.files_verified + " fichier(s) vérifié(s)", ok ? "ok" : "warn");
@@ -250,7 +251,7 @@
         loadList();
       }
       loadEstimate();
-      const s = await api.get("/api/backup/status").catch(() => null);
+      const s = await api.get("/api/backup/status").catch((error) => { notifyError(error); return null; });
       if (s && s.state === "running") {
         $("#backup-start").disabled = true;
         renderProgress(s);

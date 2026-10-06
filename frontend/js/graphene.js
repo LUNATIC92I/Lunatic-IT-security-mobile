@@ -144,6 +144,14 @@
         const actions = el("td", {});
         if (img.status === "ready" || img.status === "unverified") {
           actions.append(el("button", { type: "button", class: "btn", text: "Revérifier", onclick: async () => {
+            const ok = await confirmDialog({
+              title: "Revérifier l'image " + img.codename + " " + img.version,
+              before: "Image enregistrée sur cet ordinateur.",
+              after: "Signature GrapheneOS, SHA-256/SHA-512 et contenu de l'archive sont recontrôlés (une à deux minutes).",
+              risk: "Si la vérification échoue, l'image est supprimée (elle ne doit jamais être flashée) et devra être retéléchargée. Aucun impact sur le téléphone.",
+              confirmLabel: "Revérifier",
+            });
+            if (!ok) return;
             try {
               renderStatus(await api.post("/api/graphene/verify", { codename: img.codename, version: img.version }));
               startPolling();
@@ -230,11 +238,13 @@
     onEnter: async () => {
       loadCatalog();
       loadImages();
-      const s = await api.get("/api/graphene/download/status").catch(() => null);
+      const s = await api.get("/api/graphene/download/status").catch((error) => { notifyError(error); return null; });
       if (s && s.state !== "idle") {
         renderStatus(s);
         if (s.state === "running") startPolling();
       }
     },
+    // The download continues on the server; the display resumes when the page is opened again.
+    onLeave: () => { clearInterval(pollTimer); pollTimer = null; },
   });
 })();

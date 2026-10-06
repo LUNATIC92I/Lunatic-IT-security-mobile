@@ -227,10 +227,17 @@ class DownloadManager:
         )
 
     def _fetch_small(self, client: httpx.Client, url: str, target: Path, limit: int) -> None:
-        response = client.get(url)
-        if response.status_code != 200 or len(response.content) > limit:
-            raise DownloadError(detail=f"{url.rsplit('/', 1)[-1]}: HTTP {response.status_code}")
-        target.write_bytes(response.content)
+        """Signature / key files: streamed and abandoned as soon as they exceed ``limit``."""
+        name = url.rsplit("/", 1)[-1]
+        data = bytearray()
+        with client.stream("GET", url) as response:
+            if response.status_code != 200:
+                raise DownloadError(detail=f"{name}: HTTP {response.status_code}")
+            for chunk in response.iter_bytes():
+                data += chunk
+                if len(data) > limit:
+                    raise DownloadError(detail=f"{name}: larger than {limit} bytes, refused")
+        target.write_bytes(bytes(data))
 
     def _fetch_image(self, client: httpx.Client, url: str, part: Path, expected: int) -> None:
         offset = part.stat().st_size if part.exists() else 0
@@ -317,6 +324,9 @@ class DownloadManager:
                 detail=exc.strerror,
             )
             self._finish("failed", error=error.to_dict())
+        except Exception:  # noqa: BLE001 - the job must never stay "running" forever
+            log.exception("Unexpected error during GrapheneOS download")
+            self._finish("failed", error=LMSError(detail="unexpected error during download").to_dict())
 
     # ------------------------------------------------------- verification
     def start_verify(self, codename: str, version: str) -> dict:
@@ -352,6 +362,19 @@ class DownloadManager:
                     "detail": None,
                 },
             )
+        except LMSError as exc:
+            self._finish("failed", error=exc.to_dict())
+        except OSError as exc:
+            error = LMSError(
+                "Lecture de l'image impossible.",
+                cause="Fichier supprimé, déplacé ou disque inaccessible pendant la vérification.",
+                action="Vérifiez le disque puis relancez la vérification (ou retéléchargez l'image).",
+                detail=exc.strerror,
+            )
+            self._finish("failed", error=error.to_dict())
+        except Exception:  # noqa: BLE001 - the job must never stay "running" forever
+            log.exception("Unexpected error during GrapheneOS verification")
+            self._finish("failed", error=LMSError(detail="unexpected error during verification").to_dict())
 
     def _verify(self, codename: str, version: str, paths: dict[str, Path], source: Path, expected: int | None) -> None:
         self._update(phase="verification", verify_done=0)

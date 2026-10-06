@@ -95,3 +95,23 @@ def test_unexpected_exception_not_leaked(settings, monkeypatch):
     assert response.status_code == 500
     error = response.json()["error"]
     assert "secret" not in str(error) and error["message"] and error["action"]
+
+
+def test_non_ascii_token_is_rejected_not_crashing(client):
+    response = client.post("/api/health", headers={"X-LMS-Token": "jeton-é".encode()})
+    assert response.status_code == 403
+
+
+def test_backup_listing_does_not_write(client, tmp_path):
+    folder = tmp_path / "listing"
+    folder.mkdir()
+    response = client.get("/api/backup/list", params={"destination": str(folder)})
+    assert response.status_code == 200
+    assert not any(folder.iterdir())  # a GET never creates a write-test file
+
+
+def test_cross_site_get_rejected(client):
+    """A web page cannot make the app query the phone, even with a blind GET (<img src=...>)."""
+    assert client.get("/api/device/status", headers={"Sec-Fetch-Site": "cross-site"}).status_code == 403
+    assert client.get("/api/health", headers={"Sec-Fetch-Site": "same-origin"}).status_code == 200
+    assert client.get("/", headers={"Sec-Fetch-Site": "none"}).status_code == 200

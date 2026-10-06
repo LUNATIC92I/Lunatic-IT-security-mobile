@@ -224,10 +224,17 @@
     }
   }
 
+  function stopPolling() {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+
   async function refresh() {
     try {
       render(await api.get("/api/graphene/install/status"));
     } catch (error) {
+      // One message, not one per second: polling resumes when the page is opened again.
+      stopPolling();
       notifyError(error);
     }
   }
@@ -253,5 +260,6 @@
     }
   });
 
-  LMS.registerView("install", { title: "Installation GrapheneOS", onEnter: refresh });
+  // Leaving the page never affects the flash itself (it runs on the server); coming back resumes the display.
+  LMS.registerView("install", { title: "Installation GrapheneOS", onEnter: refresh, onLeave: stopPolling });
 })();

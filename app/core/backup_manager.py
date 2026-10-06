@@ -45,7 +45,7 @@ from app.core.errors import InvalidInputError, LMSError, PathSecurityError
 from app.core.platform_tools import SHARED_FOLDERS, SHARED_STORAGE_ROOT, OperationCancelledError
 from app.core.safety import safe_join
 from app.core.security_scanner import SecurityScanner
-from app.logging_config import get_logger
+from app.logging_config import get_logger, redact
 from app.security.applications import parse_package_list
 
 log = get_logger("backup")
@@ -164,7 +164,7 @@ class BackupManager:
         self._thread: threading.Thread | None = None
 
     # ---------------------------------------------------------- destination
-    def resolve_destination(self, raw: str | None) -> Path:
+    def resolve_destination(self, raw: str | None, *, check_writable: bool = True) -> Path:
         if raw is None or not raw.strip():
             self.settings.ensure_directories()
             return self.settings.backups_dir
@@ -178,11 +178,12 @@ class BackupManager:
         path = path.resolve()
         if not path.is_dir():
             raise BackupDestinationError(detail=f"{path} is not a directory")
-        try:
-            with tempfile.NamedTemporaryFile(dir=path, prefix=".lms-write-test-"):
-                pass
-        except OSError as exc:
-            raise BackupDestinationError(detail=exc.strerror) from exc
+        if check_writable:
+            try:
+                with tempfile.NamedTemporaryFile(dir=path, prefix=".lms-write-test-"):
+                    pass
+            except OSError as exc:
+                raise BackupDestinationError(detail=exc.strerror) from exc
         return path
 
     def browse(self, raw: str | None) -> dict:
@@ -397,13 +398,22 @@ class BackupManager:
         self._update(step=f"Empreintes SHA-256 sur le téléphone : {name}")
         result = self.runner.run("adb.hash_shared", serial=serial, params={"folder": remote}, cancel=self._cancel)
         hashes = parse_sha256_list(result.stdout)
+        phone_error = redact(result.stderr.strip())[:200]
         if not hashes:
-            notes.append(f"{name} : dossier vide ou absent, rien à copier.")
+            if result.returncode != 0 and phone_error and "no such file" not in phone_error.lower():
+                with self._lock:
+                    self._job["errors"].append(
+                        f"{name} : empreintes impossibles à calculer sur le téléphone ({phone_error})."
+                    )
+            else:
+                notes.append(f"{name} : dossier vide ou absent, rien à copier.")
             return
-        if result.returncode != 0 and result.stderr.strip():
-            notes.append(
-                f"{name} : certains fichiers n'ont pas pu être lus sur le téléphone ({result.stderr.strip()[:200]})."
-            )
+        if result.returncode != 0 and phone_error:
+            # Those files are neither copied nor certified: the backup cannot be called verified.
+            with self._lock:
+                self._job["errors"].append(
+                    f"{name} : certains fichiers n'ont pas pu être lus sur le téléphone ({phone_error})."
+                )
         relative = {}
         for path, digest in hashes.items():
             rel = "shared/" + path[len(SHARED_STORAGE_ROOT) + 1 :]
@@ -508,7 +518,11 @@ class BackupManager:
             job = dict(self._job)
         lines = [f"{digest}  {rel}" for rel, digest in sorted(manifest.items())]
         (partial / MANIFEST_NAME).write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
-        verified = not job["mismatches"] and not job["missing"] and not job["errors"]
+        # Files copied but absent from the phone-side hash list (created during the backup, or
+        # with a name sha256sum had to escape) are not certified: the backup is then incomplete.
+        verified = (
+            not job["mismatches"] and not job["missing"] and not job["errors"] and not job["changed_during_backup"]
+        )
         size = directory_size(partial)
         metadata = {
             "format": "lunatic-mobile-security-backup/1",
@@ -591,7 +605,7 @@ class BackupManager:
 
     # -------------------------------------------------- existing backups
     def list_backups(self, destination: str | None) -> dict:
-        root = self.resolve_destination(destination)
+        root = self.resolve_destination(destination, check_writable=False)  # read-only listing (GET)
         backups = []
         for entry in sorted(root.iterdir(), reverse=True):
             meta_path = entry / METADATA_NAME

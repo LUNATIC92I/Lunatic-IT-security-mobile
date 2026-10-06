@@ -340,3 +340,38 @@ manuelle ne sert qu'après un arrêt brutal. Elle demande une confirmation
 explicite (`{"confirm": true}`), s'exécute sous le verrou de l'assistant
 d'installation (refus `install_busy` si une étape est en cours), ne suit
 jamais un lien symbolique et est inscrite au journal d'audit.
+
+## Vérification finale du projet — corrections
+
+Relecture complète (sécurité, logique, interface) après la phase 12 ; chaque
+point a été reproduit puis couvert par un test :
+
+* **Délai du flashage** : le script officiel est lancé dans son propre groupe
+  de processus ; à l'expiration de `LMS_FLASH_TIMEOUT`, tout le groupe est
+  arrêté (`killpg` ; `taskkill /T` sous Windows), y compris un `fastboot`
+  bloqué sur « waiting for any device » qui maintenait auparavant la session
+  occupée indéfiniment.
+* **Contrôles préalables** exclusifs du flashage (aucune commande `fastboot`
+  en parallèle de `flash-all`), invalidés par une nouvelle préparation de
+  l'image.
+* **Téléchargement / vérification** : une signature tronquée ou une erreur
+  imprévue termine la tâche en échec au lieu de la laisser « en cours ».
+  Les fichiers de signature sont lus en flux, limités en taille.
+  Téléchargement, revérification et suppression d'image refusés pendant une
+  étape d'installation.
+* **Renforcement** : la relecture se fait en mode strict ; une lecture
+  impossible donne « non vérifié », jamais « vérifié ».
+* **Sauvegarde** : « vérifiée » seulement si tous les fichiers copiés sont
+  certifiés et qu'aucun fichier ou dossier n'a été ignoré sur le téléphone.
+* **Appareils** : `resolve` utilise sa propre énumération (plus de course avec
+  l'actualisation de l'interface).
+* **Interface** : erreurs inattendues présentées en ERREUR / CAUSE / ACTION,
+  arrêt des interrogations du serveur en quittant une page, plus de fausse
+  alerte « Serveur injoignable » lors du renouvellement normal du flux de
+  logs, confirmation avant une revérification (qui supprime une image
+  invalide), lectures impossibles affichées dans le Renforcement.
+
+Points examinés et conservés : le jeton de plan de renforcement est daté avec
+l'horloge système (signé HMAC, valable 15 minutes) ; un changement d'horloge ne
+peut que l'invalider plus tôt ou plus tard, sans contourner la vérification de
+l'état AVANT.

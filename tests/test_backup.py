@@ -126,8 +126,18 @@ def test_corruption_during_transfer_is_detected(backup, fake_devices, phone_stor
 def test_file_created_during_backup(backup, fake_devices, phone_storage, dest):
     plug(fake_devices, phone_storage, appear_during_pull=["DCIM/Camera/IMG_new.jpg"])
     status = run(backup, dest, folders=("DCIM",), apks=False)
-    assert status["result"] == "verified"
+    # Copied but never hashed on the phone: not certified, so the backup is not "verified".
+    assert status["result"] == "incomplete"
     assert status["changed_during_backup"] == ["shared/DCIM/Camera/IMG_new.jpg"]
+    assert "IMG_new" not in (Path(status["backup_path"]) / "SHA256SUMS").read_text()
+
+
+@POSIX_ONLY
+def test_unreadable_file_on_phone_makes_backup_incomplete(backup, fake_devices, phone_storage, dest):
+    plug(fake_devices, phone_storage, hash_unreadable=["DCIM/Camera/VID_20261002.mp4"])
+    status = run(backup, dest, folders=("DCIM",), apks=False)
+    assert status["state"] == "completed" and status["result"] == "incomplete"
+    assert any("Permission denied" in e for e in status["errors"])
 
 
 @POSIX_ONLY

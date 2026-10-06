@@ -326,3 +326,13 @@ def test_successful_installation_is_verified_not_assumed(app, fake_devices, tmp_
     fake_devices(adb=[{"serial": SERIAL, "state": "device", "profile": "grapheneos"}])
     session = action(app, sid, "post_check").json()
     assert all(s["status"] == "done" for s in session["steps"])
+
+
+def test_image_cannot_be_deleted_or_replaced_during_an_install_step(app, fake_devices):
+    sid = _install_until_flash(app, fake_devices, flash_sleep=1)
+    assert action(app, sid, "flash", confirm=True).status_code == 200
+    body = {"codename": "husky", "version": VERSION}
+    assert_user_error(app.post("/api/graphene/images/delete", json=body), 409, "install_busy")
+    assert_user_error(app.post("/api/graphene/verify", json=body), 409, "install_busy")
+    assert_user_error(app.post("/api/graphene/download", json={"codename": "husky", "channel": "stable"}), 409)
+    assert step_status(wait_install(app), "flash") == "done"

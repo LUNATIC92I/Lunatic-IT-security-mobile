@@ -248,3 +248,32 @@ def test_component_list_cannot_inject(settings, fake_devices):
     with pytest.raises(InvalidInputError):
         spec.build("HUSKYSERIAL01", {"components": "a.b/C$Inner"})
     assert dataclasses.replace(spec).mutating
+
+
+@pytest.mark.parametrize(
+    ("action_id", "target", "failing"),
+    [
+        ("clear_global_proxy", None, "adb.settings_get"),
+        ("revoke_permission", "com.example.flashlight:camera", "adb.dumpsys_package_one"),
+    ],
+)
+def test_unreadable_phone_after_change_is_not_verified(service, fake_devices, monkeypatch, action_id, target, failing):
+    """A read-back that fails must never be mistaken for the expected state."""
+    from app.core.errors import ToolTimeoutError
+
+    fake_devices(adb=[device()])
+    item = find(service.plan(None), action_id, target)
+    original = CommandRunner.run
+    changed = {"done": False}
+
+    def flaky(self, command, *args, **kwargs):
+        if kwargs.get("confirmed"):
+            changed["done"] = True
+        elif changed["done"] and command == failing:
+            raise ToolTimeoutError(detail="simulated: phone stopped answering")
+        return original(self, command, *args, **kwargs)
+
+    monkeypatch.setattr(CommandRunner, "run", flaky)
+    result = apply(service, item)
+    assert result["status"] == "not_verified"
+    assert "Relecture impossible" in result["after_observed"]

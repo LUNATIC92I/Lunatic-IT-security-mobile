@@ -208,7 +208,7 @@
       adbOnly([
         prop("Stockage total", d.storage ? formatBytes(d.storage.total_bytes) : null),
         prop("Stockage libre", d.storage ? formatBytes(d.storage.free_bytes) : null),
-        prop("Batterie", d.battery ? d.battery.level + " %" + (d.battery.status ? " — " + d.battery.status : "") : null),
+        prop("Batterie", d.battery && d.battery.level !== null ? d.battery.level + " %" + (d.battery.status ? " — " + d.battery.status : "") : null),
         prop("Santé batterie", d.battery ? d.battery.health : null),
         prop("Température", d.battery && d.battery.temperature_c !== null ? d.battery.temperature_c + " °C" : null),
       ].flat()),

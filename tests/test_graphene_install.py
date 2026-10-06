@@ -425,3 +425,58 @@ def test_insufficient_usb_permissions_cannot_start_installation(graphene, fake_d
     with pytest.raises(LMSError) as exc:
         graphene.installer.start(None, "stable")
     assert "udev" in (exc.value.cause + exc.value.action).lower() or "permission" in exc.value.message.lower()
+
+
+def test_flash_timeout_kills_a_hung_fastboot(graphene, fake_devices):
+    """The watchdog must stop the whole script process tree, not only bash.
+
+    A fastboot stuck after a cable is pulled keeps the output pipe open: killing
+    only the script would leave the flash thread blocked forever.
+    """
+    sid = ready_session(graphene, fake_devices, flash_sleep=120)
+    inst = graphene.installer
+    inst.settings = inst.settings.model_copy(update={"flash_timeout": 1})
+    assert inst.preflight(sid)["ready_to_install"]
+    started = time.monotonic()
+    inst.flash(sid)
+    inst.wait(30)
+    session = inst.status()["session"]
+    assert time.monotonic() - started < 20, "flash thread stayed blocked on the hung fastboot"
+    assert not session["busy"] and steps(session)["flash"] == "failed"
+    assert "Délai" in next(s for s in session["steps"] if s["id"] == "flash")["detail"]
+
+
+def test_preflight_refused_while_flashing(graphene, fake_devices):
+    """No fastboot command in parallel with flash-all, and no READY TO INSTALL behind a running flash."""
+    sid = ready_session(graphene, fake_devices, flash_sleep=1)
+    inst = graphene.installer
+    assert inst.preflight(sid)["ready_to_install"]
+    inst.flash(sid)
+    with pytest.raises(LMSError) as exc:
+        inst.preflight(sid)
+    assert exc.value.code == "install_busy"
+    inst.wait(60)
+    assert not inst.status()["session"]["ready_to_install"]  # single use, not revived
+
+
+def test_preparing_again_invalidates_ready_to_install(graphene, fake_devices):
+    sid = ready_session(graphene, fake_devices)
+    inst = graphene.installer
+    assert inst.preflight(sid)["ready_to_install"]
+    session = inst.prepare_image(sid)
+    assert not session["ready_to_install"]
+    with pytest.raises(InstallStateError):
+        inst.flash(sid)
+
+
+def test_safe_extract_refuses_zip_bomb(tmp_path):
+    import zipfile
+
+    from app.graphene.installer import safe_extract
+
+    bomb = tmp_path / "bomb.zip"
+    with zipfile.ZipFile(bomb, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("husky-install-1/boot.img", b"\0" * 5_000_000)
+    with pytest.raises(InvalidInputError):
+        safe_extract(bomb, tmp_path / "out", "husky-install-1/")
+    assert not (tmp_path / "out").exists()

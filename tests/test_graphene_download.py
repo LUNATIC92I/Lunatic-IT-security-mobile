@@ -293,3 +293,37 @@ def test_signed_image_with_unofficial_avb_key_is_refused(tmp_path, signer):
         expected_avb_key_sha256=VERIFIED_BOOT_KEY_HASHES["husky"],
     )
     assert not report.ok and failed(report) == ["avb_key"] and "DIFFÉRENTE" in report.steps[-1]["detail"]
+
+
+def test_truncated_signature_header_is_a_format_error():
+    import base64
+
+    blob = base64.b64encode(b"SSHSIG").decode()
+    with pytest.raises(verifier.SignatureFormatError):
+        verifier.parse_sshsig(f"-----BEGIN SSH SIGNATURE-----\n{blob}\n-----END SSH SIGNATURE-----")
+
+
+def test_truncated_signature_fails_the_job_instead_of_hanging(manager, server):
+    import base64
+
+    blob = base64.b64encode(b"SSHSIG").decode()
+    server.files[f"husky-install-{VERSION}.zip.sig"] = (
+        f"-----BEGIN SSH SIGNATURE-----\n{blob}\n-----END SSH SIGNATURE-----\n".encode()
+    )
+    status = run(manager)
+    assert status["state"] == "failed" and status["result"] == "verification_failed"
+
+
+def test_unexpected_error_in_verification_thread_never_leaves_job_running(manager, settings, monkeypatch):
+    assert run(manager)["result"] == "ready"
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("unexpected")
+
+    monkeypatch.setattr(verifier, "verify_image", boom)
+    manager.start_verify("husky", VERSION)
+    manager.wait(10)
+    status = manager.status()
+    assert status["state"] == "failed" and status["error"]["action"]
+    manager.start_verify("husky", VERSION)  # not blocked by a phantom "running" job
+    manager.wait(10)

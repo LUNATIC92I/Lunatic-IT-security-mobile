@@ -95,6 +95,8 @@ def parse_sshsig(armored: str) -> SshSignature:
         raise SignatureFormatError("invalid base64") from exc
     if blob[:6] != b"SSHSIG":
         raise SignatureFormatError("bad magic")
+    if len(blob) < 10:
+        raise SignatureFormatError("truncated header")
     (version,) = struct.unpack(">I", blob[6:10])
     if version != 1:
         raise SignatureFormatError(f"unsupported SSHSIG version {version}")

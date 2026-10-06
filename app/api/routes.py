@@ -98,7 +98,7 @@ async def logs_stream(
     if last_event_id:
         # Event ids are "<boot>-<entry id>": ids from a previous launch mean "start over".
         boot, _, entry_id = last_event_id.partition("-")
-        since = int(entry_id) if boot == BOOT_ID and entry_id.isdigit() else 0
+        since = int(entry_id) if boot == BOOT_ID and entry_id.isascii() and entry_id.isdigit() else 0
     handler = get_memory_handler()
 
     async def events() -> AsyncIterator[str]:

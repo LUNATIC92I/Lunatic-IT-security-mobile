@@ -149,3 +149,8 @@ def test_purge_refused_while_install_step_runs(client, settings):
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "install_busy"
     assert (settings.temp_dir / "install-live").is_dir()
+
+
+def test_log_stream_rejects_crafted_last_event_id(client):
+    response = client.get("/api/logs/stream?duration=1", headers={"Last-Event-ID": f"{BOOT_ID}-²".encode()})
+    assert response.status_code == 200  # treated as "start over", never a 500

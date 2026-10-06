@@ -62,11 +62,17 @@ class HardeningNotApplicableError(LMSError):
     default_action = "Actualisez le plan de renforcement."
 
 
+class ReadBackError(Exception):
+    """The phone could not be re-read while verifying: the change is NOT confirmed."""
+
+
 @dataclass
 class Context:
     runner: CommandRunner
     adb: AdbManager
     serial: str
+    # True while verifying: an unreadable value must never look like the expected state.
+    strict: bool = False
 
     def run(self, command: str, **params: str):
         return self.runner.run(command, serial=self.serial, params=params or None)
@@ -84,7 +90,22 @@ class Context:
             )
 
     def setting(self, namespace: str, key: str) -> str | None:
-        return self.adb.get_setting(self.serial, namespace, key)
+        if not self.strict:
+            return self.adb.get_setting(self.serial, namespace, key)
+        try:
+            result = self.run("adb.settings_get", namespace=namespace, key=key)
+        except LMSError as exc:
+            raise ReadBackError(f"settings get {namespace} {key} : {exc.message}") from exc
+        value = result.stdout.strip()
+        if not result.ok or "exception" in value.lower():
+            raise ReadBackError(f"settings get {namespace} {key} a échoué")
+        return None if value in ("", "null") else value
+
+    def checked(self, result, what: str):
+        """In strict mode, a failed read raises instead of looking like an empty state."""
+        if self.strict and not result.ok:
+            raise ReadBackError(f"{what} a échoué (code {result.returncode})")
+        return result
 
 
 @dataclass(frozen=True)
@@ -135,10 +156,12 @@ def _require_target(target: str | None) -> str:
 
 
 def _granted_in_group(ctx: Context, package: str, group: str) -> list[str]:
-    result = ctx.run("adb.dumpsys_package_one", package=package)
+    result = ctx.checked(ctx.run("adb.dumpsys_package_one", package=package), f"dumpsys package {package}")
     packages = applications.parse_dumpsys_packages(result.stdout) if result.ok else {}
     record = packages.get(package)
     if record is None:
+        if ctx.strict:
+            raise ReadBackError(f"{package} introuvable dans dumpsys package")
         return []
     return sorted(record.runtime_granted & permissions.PERMISSION_GROUPS[group][1])
 
@@ -151,7 +174,7 @@ def _accessibility_components(ctx: Context) -> list[str]:
 
 
 def _install_allowed(ctx: Context) -> list[str]:
-    result = ctx.run("adb.appops_install_allowed")
+    result = ctx.checked(ctx.run("adb.appops_install_allowed"), "appops query-op REQUEST_INSTALL_PACKAGES")
     return permissions.parse_appops_query(result.stdout) if result.ok else []
 
 
@@ -166,10 +189,14 @@ def _usb_verify(ctx: Context, _t: str | None) -> tuple[bool, str]:
     while time.monotonic() < deadline:
         try:
             result = ctx.runner.run("adb.devices")
-            entries = parse_devices(result.stdout)
         except LMSError:
-            entries = []
-        if not any(e.serial == ctx.serial and e.state == "device" for e in entries):
+            result = None
+        # Only a successful listing can prove the phone is gone; a failed adb call proves nothing.
+        if (
+            result is not None
+            and result.ok
+            and not any(e.serial == ctx.serial and e.state == "device" for e in parse_devices(result.stdout))
+        ):
             return True, "Le téléphone n'apparaît plus comme appareil ADB autorisé : le débogage USB est coupé."
         time.sleep(0.5)
     return False, "Le téléphone répond toujours via ADB après 10 secondes."
@@ -604,7 +631,16 @@ class HardeningEngine:
             raise HardeningStateChangedError()
         log.info("Hardening action started: %s %s", action_id, target or "")
         action.apply(ctx, target)
-        verified, observed = action.verify(ctx, target)
+        ctx.strict = True
+        try:
+            verified, observed = action.verify(ctx, target)
+        except ReadBackError as exc:
+            verified, observed = False, f"Relecture impossible, modification non confirmée : {exc}"
+        except LMSError as exc:
+            # The change was sent; failing to re-read it means "not confirmed", never "verified".
+            verified, observed = False, f"Relecture impossible, modification non confirmée : {exc.message}"
+        finally:
+            ctx.strict = False
         status = "verified" if verified else "not_verified"
         if verified:
             log.info("Hardening action verified: %s %s", action_id, target or "")
