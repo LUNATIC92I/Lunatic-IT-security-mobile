@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import secrets
 import socket
@@ -26,6 +27,7 @@ import sys
 import threading
 import webbrowser
 
+import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -73,6 +75,8 @@ def create_app(settings: Settings | None = None, *, console_logging: bool = True
     app = FastAPI(title=APP_NAME, version=__version__, docs_url=None, redoc_url=None)
     app.state.settings = settings
     app.state.csrf_token = secrets.token_urlsafe(32)
+    # Set when the server starts shutting down: long-lived streams end themselves.
+    app.state.shutting_down = threading.Event()
     app.state.runner = CommandRunner(settings)
     app.state.audit = AuditLogger(settings.audit_log_path)
     app.state.devices = DeviceManager(app.state.runner, app.state.audit)
@@ -111,7 +115,9 @@ def create_app(settings: Settings | None = None, *, console_logging: bool = True
 
     @app.exception_handler(LMSError)
     async def lms_error_handler(request: Request, exc: LMSError):
-        log.error("%s %s failed: %s (%s)", request.method, request.url.path, exc.message, exc.detail or exc.code)
+        # 5xx are real failures; 4xx are refusals or "nothing yet" states (e.g. no report).
+        level = logging.ERROR if exc.http_status >= 500 else logging.INFO if exc.http_status == 404 else logging.WARNING
+        log.log(level, "%s %s failed: %s (%s)", request.method, request.url.path, exc.message, exc.detail or exc.code)
         return _error_response(exc)
 
     @app.exception_handler(RequestValidationError)
@@ -171,6 +177,18 @@ def _print_environment_report(settings: Settings) -> int:
     return 1 if report["overall"] == "fail" else 0
 
 
+class StoppableServer(uvicorn.Server):
+    """uvicorn waits for open connections before exiting: tell the log streams to end first."""
+
+    def __init__(self, config: uvicorn.Config, stopping: threading.Event) -> None:
+        super().__init__(config)
+        self._stopping = stopping
+
+    def handle_exit(self, sig, frame) -> None:
+        self._stopping.set()
+        super().handle_exit(sig, frame)
+
+
 def cli(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="lunatic-mobile-security", description=APP_NAME)
     parser.add_argument("--port", type=int, help="Port local (défaut : 8765 ou LMS_PORT)")
@@ -204,15 +222,14 @@ def cli(argv: list[str] | None = None) -> int:
         )
         return 1
 
-    import uvicorn
-
     app = create_app(settings)
     host_for_url = f"[{settings.host}]" if ":" in settings.host else settings.host
     url = f"http://{host_for_url}:{settings.port}/"
     if settings.open_browser and not args.no_browser:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     print(f"{APP_NAME} disponible sur {url} (Ctrl+C pour quitter)")
-    uvicorn.run(app, host=settings.host, port=settings.port, log_level="warning", access_log=False)
+    config = uvicorn.Config(app, host=settings.host, port=settings.port, log_level="warning", access_log=False)
+    StoppableServer(config, app.state.shutting_down).run()
     app.state.audit.record("application_stopped")
     return 0
 

@@ -48,6 +48,7 @@
 .log-line.WARN .lvl { color: var(--warn); }
 .log-line.ERROR .lvl, .log-line.CRIT .lvl { color: var(--fail); }
 .log-empty { color: var(--muted); padding: 8px 0; }
+.log-sep { color: var(--warn); padding: 6px 0; text-align: center; }
 
 @media (max-width: 600px) {
   .hero { flex-direction: column; text-align: center; }
@@ -265,3 +266,11 @@ button.chip.active { color: var(--text); border-color: var(--accent); background
 .confirm-form input[type=checkbox] { accent-color: var(--fail); margin-top: 2px; }
 .confirm-form .input { font-family: var(--mono); letter-spacing: .08em; }
 @media (max-width: 860px) { .install-layout { grid-template-columns: 1fr; } }
+
+/* Logs & settings */
+.log-toolbar { margin-bottom: 10px; }
+.storage-actions { margin-top: 18px; display: grid; gap: 6px; justify-items: start; }
+.guarantees { margin: 0; padding-left: 18px; display: grid; gap: 8px; font-size: 13px; color: var(--muted); }
+.guarantees li::marker { color: var(--ok); }
+#view-settings > .card { margin-top: 16px; }
+.settings-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr)); align-items: start; }

@@ -306,3 +306,37 @@ Validation du 2026-10-06 : le vrai `flash-all.sh` de `husky-install-2026100200.z
 `VERIFIED_BOOT_KEY_HASHES` reprend les empreintes officielles de chaque modèle. L'image doit
 contenir un `avb_pkmd.bin` dont le SHA-256 est identique (vérifié en phase 7 et avant le
 flashage) : la clé écrite dans l'élément sécurisé est donc forcément celle de GrapheneOS.
+
+## Modules livrés en phase 9 — Interface complète
+
+| Fichier | Rôle |
+|---------|------|
+| `app/api/routes.py` | `GET /api/logs/stream` (Server-Sent Events), `GET /api/logs/export`, `GET /api/settings/storage`, `POST /api/settings/purge-temp`. |
+| `app/core/storage.py` | Taille par dossier de données (liens symboliques jamais suivis), purge du dossier temporaire. |
+| `frontend/js/app.js` | Routeur, fenêtres de confirmation (focus piégé), graphiques à barres partagés, vues Dashboard / Logs / Paramètres. |
+
+### Flux de logs
+
+* Chaque entrée est un évènement `log` dont l'`id` vaut `<boot>-<numéro>` :
+  après une coupure réseau, `EventSource` reprend exactement où il s'était
+  arrêté (`Last-Event-ID`) ; après un redémarrage de l'application (numéros
+  repartant de 1, `boot` différent) le flux repart du début et l'interface
+  affiche « Application redémarrée ».
+* Le flux se ferme de lui-même après `duration` secondes (300 par défaut) —
+  le navigateur se reconnecte seul — et immédiatement quand le serveur
+  s'arrête : sans cela, uvicorn attendrait la fin des connexions ouvertes
+  avant de quitter.
+* Si le flux ne peut pas s'ouvrir, l'interface interroge `/api/logs` toutes
+  les 2 secondes. Le contenu est déjà masqué côté serveur (numéros de série,
+  secrets), y compris dans l'export.
+* Les erreurs 4xx sont journalisées en `WARN` (404 « rien pour l'instant » en
+  `INFO`) ; seules les vraies pannes (5xx) apparaissent en `ERROR`.
+
+### Nettoyage des fichiers temporaires
+
+Le dossier `tmp/` contient le répertoire de travail du flashage
+(`install-<session>`), supprimé normalement en fin d'opération. La purge
+manuelle ne sert qu'après un arrêt brutal. Elle demande une confirmation
+explicite (`{"confirm": true}`), s'exécute sous le verrou de l'assistant
+d'installation (refus `install_busy` si une étape est en cours), ne suit
+jamais un lien symbolique et est inscrite au journal d'audit.

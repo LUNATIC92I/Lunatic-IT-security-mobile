@@ -140,13 +140,27 @@ const LMS = (() => {
           el("div", { class: "lbl", text: "CONFIRMATION" }),
           el("div", { text: options.question || "Voulez-vous continuer ?" })),
         el("div", { class: "modal-actions" }, cancel, confirm));
+      const opener = document.activeElement;
       const close = (result) => {
         document.removeEventListener("keydown", onKey);
         backdrop.hidden = true;
         backdrop.replaceChildren();
+        if (opener && opener.isConnected && typeof opener.focus === "function") opener.focus();
         resolve(result);
       };
-      const onKey = (event) => { if (event.key === "Escape") close(false); };
+      const onKey = (event) => {
+        if (event.key === "Escape") { close(false); return; }
+        if (event.key !== "Tab") return;
+        // Keep keyboard focus inside the dialog.
+        const focusable = [...dialog.querySelectorAll("button, input, select, textarea, a[href], [tabindex]:not([tabindex='-1'])")]
+          .filter((node) => !node.disabled);
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+        else if (!dialog.contains(document.activeElement)) { event.preventDefault(); first.focus(); }
+      };
       cancel.addEventListener("click", () => close(false));
       confirm.addEventListener("click", () => close(true));
       backdrop.onclick = (event) => { if (event.target === backdrop) close(false); };
@@ -159,6 +173,43 @@ const LMS = (() => {
 
   // ------------------------------------------------------------ shared state
   const state = { selectedDeviceId: null };
+
+  /* Chart tooltip, reachable by mouse AND keyboard: the row is focusable and
+   * carries the same text as an accessible label. */
+  function attachTooltip(node, title, text) {
+    const tooltip = document.getElementById("tooltip");
+    const place = (x, y) => {
+      tooltip.replaceChildren(el("strong", { text: title }), text);
+      tooltip.hidden = false;
+      tooltip.style.left = Math.max(8, Math.min(x + 14, window.innerWidth - tooltip.offsetWidth - 8)) + "px";
+      tooltip.style.top = Math.max(8, Math.min(y + 14, window.innerHeight - tooltip.offsetHeight - 8)) + "px";
+    };
+    const hide = () => { tooltip.hidden = true; };
+    node.tabIndex = 0;
+    node.setAttribute("aria-label", title + " : " + text);
+    node.addEventListener("mousemove", (event) => place(event.clientX, event.clientY));
+    node.addEventListener("mouseleave", hide);
+    node.addEventListener("focus", () => { const r = node.getBoundingClientRect(); place(r.left + r.width / 2, r.bottom); });
+    node.addEventListener("blur", hide);
+  }
+
+  /* Horizontal bar chart: one hue, value at the tip, optional tooltip. */
+  function hbars(container, rows, max, tooltipFor) {
+    if (!rows.length) {
+      container.replaceChildren(el("p", { class: "muted", text: "Aucune donnée." }));
+      return;
+    }
+    container.replaceChildren(...rows.map((row) => {
+      const fill = el("span", { class: "hbar-fill" });
+      fill.style.width = (max ? Math.max(0, Math.min(100, (row.value / max) * 100)) : 0) + "%";
+      const node = el("div", { class: "hbar-row" },
+        el("span", { class: "hbar-label", text: row.label }),
+        el("span", { class: "hbar-track", "aria-hidden": "true" }, fill),
+        el("span", { class: "hbar-value", text: String(row.display ?? row.value) }));
+      if (tooltipFor) attachTooltip(node, row.label, tooltipFor(row));
+      return node;
+    }));
+  }
 
   function formatBytes(bytes) {
     if (bytes === null || bytes === undefined) return "—";
@@ -177,15 +228,31 @@ const LMS = (() => {
     views[name] = { title, onEnter, onLeave };
   }
 
+  function setSidebar(open) {
+    $("#sidebar").classList.toggle("open", open);
+    $("#menu-toggle").setAttribute("aria-expanded", String(open));
+    $("#menu-toggle").setAttribute("aria-label", open ? "Fermer le menu" : "Ouvrir le menu");
+    $("#sidebar-scrim").hidden = !open;
+  }
+
   function route() {
     const name = (location.hash.replace(/^#\//, "") || "dashboard").split("/")[0];
     const target = views[name] ? name : "dashboard";
     if (currentView && currentView !== target && views[currentView].onLeave) views[currentView].onLeave();
     document.querySelectorAll(".view").forEach((v) => { v.hidden = v.id !== "view-" + target; });
     document.querySelectorAll(".nav-item").forEach((a) => a.classList.toggle("active", a.dataset.view === target));
+    document.querySelectorAll(".nav-item").forEach((a) => {
+      if (a.dataset.view === target) a.setAttribute("aria-current", "page");
+      else a.removeAttribute("aria-current");
+    });
     $("#page-title").textContent = views[target].title;
-    $("#sidebar").classList.remove("open");
+    document.title = views[target].title + " — LUNATIC MOBILE SECURITY";
+    const wasOpen = $("#sidebar").classList.contains("open");
+    setSidebar(false);
     const entering = currentView !== target;
+    // Keyboard and screen-reader users land on the new page title (not on first load).
+    if (entering && currentView !== null) $("#page-title").focus({ preventScroll: true });
+    else if (wasOpen) $("#menu-toggle").focus();
     currentView = target;
     if (entering && views[target].onEnter) views[target].onEnter();
   }
@@ -308,41 +375,158 @@ const LMS = (() => {
   }
 
   // -------------------------------------------------------------------- logs
-  const logState = { lastId: 0, timer: null, paused: false };
+  /* Real-time feed over Server-Sent Events (EventSource reconnects by itself and
+   * resumes with Last-Event-ID). If the stream cannot be opened, the view falls
+   * back to polling /api/logs every 2 s. */
+  const MAX_LOG_LINES = 3000;
+  const logState = { lastId: 0, boot: null, source: null, timer: null, paused: false, buffer: [] };
+
+  function setLogConnection(kind) {
+    const badge = $("#log-conn");
+    const [cls, text] = {
+      live: ["ok", "En direct"], polling: ["warn", "Rafraîchissement 2 s"],
+      paused: ["neutral", "En pause"], offline: ["fail", "Serveur injoignable"], idle: ["neutral", "Hors ligne"],
+    }[kind];
+    badge.className = "badge " + cls;
+    badge.textContent = text;
+  }
+
+  function logMatches(line) {
+    const needle = $("#log-filter").value.trim().toLowerCase();
+    return !needle || line.dataset.text.includes(needle);
+  }
+
+  function updateLogCount() {
+    const view = $("#log-view");
+    const total = view.querySelectorAll(".log-line").length;
+    const shown = view.querySelectorAll(".log-line:not([hidden])").length;
+    $("#log-count").textContent = total ? (shown === total ? total + " ligne(s)." : shown + " / " + total + " ligne(s) affichée(s).") : "";
+  }
 
   function appendLogs(entries) {
+    if (!entries.length) return;
     const view = $("#log-view");
     const stick = view.scrollTop + view.clientHeight >= view.scrollHeight - 30;
     view.querySelector(".log-empty")?.remove();
+    const fragment = document.createDocumentFragment();
     for (const entry of entries) {
-      view.append(el("div", { class: "log-line " + entry.level },
+      if (entry.boot && entry.boot !== logState.boot) {
+        // The application restarted: its log ids start over.
+        if (logState.boot !== null) fragment.append(el("div", { class: "log-sep", text: "— Application redémarrée —" }));
+        logState.boot = entry.boot;
+        logState.lastId = 0;
+      }
+      if (entry.id <= logState.lastId) continue;
+      logState.lastId = entry.id;
+      const line = el("div", { class: "log-line " + entry.level },
         el("span", { class: "ts", text: entry.timestamp + " " }),
         el("span", { class: "lvl", text: entry.level }),
-        " " + entry.message));
+        " " + entry.message);
+      line.dataset.text = (entry.level + " " + entry.message).toLowerCase();
+      line.hidden = !logMatches(line);
+      fragment.append(line);
     }
-    while (view.childElementCount > 3000) view.firstElementChild.remove();
+    view.append(fragment);
+    while (view.childElementCount > MAX_LOG_LINES) view.firstElementChild.remove();
     if (stick) view.scrollTop = view.scrollHeight;
+    updateLogCount();
+  }
+
+  function showEmptyLogs() {
+    const view = $("#log-view");
+    if (!view.childElementCount) view.append(el("div", { class: "log-empty", text: "Aucune entrée pour le moment." }));
+  }
+
+  function receive(entries) {
+    if (logState.paused) logState.buffer.push(...entries);
+    else appendLogs(entries);
+  }
+
+  function levelParam() {
+    const level = $("#log-level").value;
+    return level ? "&level=" + level : "";
   }
 
   async function pollLogs() {
-    if (logState.paused) return;
-    const level = $("#log-level").value;
     try {
-      const data = await api.get("/api/logs?since=" + logState.lastId + (level ? "&level=" + level : ""));
-      if (data.entries.length) appendLogs(data.entries);
-      logState.lastId = data.last_id;
-      if (!$("#log-view").childElementCount) {
-        $("#log-view").append(el("div", { class: "log-empty", text: "Aucune entrée pour le moment." }));
+      let data = await api.get("/api/logs?since=" + logState.lastId + levelParam());
+      if (logState.boot !== null && data.boot !== logState.boot) {
+        data = await api.get("/api/logs?since=0" + levelParam()); // restarted: ids start over
       }
+      receive(data.entries.map((entry) => ({ ...entry, boot: data.boot })));
+      showEmptyLogs();
+      if (!logState.paused) setLogConnection("polling");
     } catch (error) {
+      setLogConnection("offline");
       if (!(error instanceof ApiError && error.status === 0)) notifyError(error);
     }
   }
 
+  function startLogs() {
+    stopLogs();
+    if (typeof EventSource === "undefined") {
+      pollLogs();
+      logState.timer = setInterval(pollLogs, 2000);
+      return;
+    }
+    // Entries already displayed are skipped client-side (ids per boot), so asking
+    // from 0 after a level change or a restart is always correct.
+    const source = new EventSource("/api/logs/stream?since=" + (logState.boot ? logState.lastId : 0) + levelParam());
+    logState.source = source;
+    let opened = false;
+    source.addEventListener("open", () => {
+      opened = true;
+      if (!logState.paused) setLogConnection("live");
+      showEmptyLogs();
+    });
+    source.addEventListener("log", (event) => {
+      try { receive([JSON.parse(event.data)]); } catch { /* malformed event: ignored */ }
+    });
+    source.addEventListener("error", () => {
+      if (source.readyState === EventSource.CLOSED || !opened) {
+        // Stream unavailable (proxy, old browser...): fall back to polling.
+        source.close();
+        if (logState.source === source) {
+          logState.source = null;
+          pollLogs();
+          logState.timer = setInterval(pollLogs, 2000);
+        }
+      } else {
+        setLogConnection("offline"); // EventSource retries on its own
+      }
+    });
+  }
+
+  function stopLogs() {
+    if (logState.source) { logState.source.close(); logState.source = null; }
+    clearInterval(logState.timer);
+    logState.timer = null;
+    setLogConnection("idle");
+  }
+
   function resetLogs() {
     logState.lastId = 0;
+    logState.buffer = [];
     $("#log-view").replaceChildren();
-    pollLogs();
+    updateLogCount();
+    startLogs();
+  }
+
+  function togglePause(event) {
+    logState.paused = !logState.paused;
+    event.currentTarget.textContent = logState.paused ? "Reprendre" : "Pause";
+    event.currentTarget.setAttribute("aria-pressed", String(logState.paused));
+    if (logState.paused) {
+      setLogConnection("paused");
+    } else {
+      appendLogs(logState.buffer.splice(0));
+      setLogConnection(logState.source ? "live" : "polling");
+    }
+  }
+
+  function applyLogFilter() {
+    for (const line of $("#log-view").querySelectorAll(".log-line")) line.hidden = !logMatches(line);
+    updateLogCount();
   }
 
   // ---------------------------------------------------------------- settings
@@ -354,17 +538,83 @@ const LMS = (() => {
     grapheneos_releases_url: "Source GrapheneOS", min_fastboot_version: "Fastboot minimum",
   };
 
+  function kvRows(pairs) {
+    return pairs.flatMap(([key, value]) => [el("dt", { text: key }), el("dd", { text: value === null || value === undefined || value === "" ? "—" : String(value) })]);
+  }
+
   async function loadSettings() {
     try {
       const data = await api.get("/api/settings");
-      $("#settings-list").replaceChildren(...Object.entries(data).flatMap(([key, value]) => [
-        el("dt", { text: SETTING_LABELS[key] || key }),
-        el("dd", { text: value === null ? "—" : String(value) }),
-      ]));
+      $("#settings-list").replaceChildren(...kvRows(Object.entries(data).map(([k, v]) => [SETTING_LABELS[k] || k, v])));
     } catch (error) {
       $("#settings-list").replaceChildren(errorBox(error));
     }
+    loadTools();
+    loadStorage();
     loadAudit();
+  }
+
+  async function loadTools() {
+    const target = $("#tools-list");
+    try {
+      const data = await api.get("/api/system/environment");
+      const rows = [];
+      for (const name of ["adb", "fastboot"]) {
+        const tool = data.tools[name] || {};
+        rows.push([name, tool.found ? (tool.version || "version inconnue") : "introuvable"]);
+        rows.push(["Chemin " + name, tool.path]);
+      }
+      const fastboot = data.tools.fastboot || {};
+      if (fastboot.found) {
+        rows.push(["Version GrapheneOS", fastboot.meets_minimum === false
+          ? "Trop ancienne : mettez à jour les platform-tools"
+          : fastboot.meets_minimum ? "Compatible avec l'installation" : "Non déterminée"]);
+      }
+      target.replaceChildren(...kvRows(rows));
+    } catch (error) {
+      target.replaceChildren(errorBox(error));
+    }
+  }
+
+  async function loadStorage() {
+    try {
+      const data = await api.get("/api/settings/storage");
+      const max = Math.max(1, ...data.folders.map((f) => f.bytes));
+      hbars($("#storage-bars"), data.folders.map((f) => ({ label: f.label, value: f.bytes, display: formatBytes(f.bytes), path: f.path, files: f.files })),
+        max, (row) => row.files + " fichier(s) — " + row.path);
+      $("#storage-summary").textContent = "Total utilisé : " + formatBytes(data.total_bytes)
+        + (data.disk_free_bytes !== null ? " · Espace libre sur le disque : " + formatBytes(data.disk_free_bytes) : "");
+      const tmp = data.folders.find((f) => f.key === "tmp");
+      $("#purge-temp").disabled = !tmp || tmp.files === 0;
+      $("#purge-temp").title = tmp && tmp.files === 0 ? "Aucun fichier temporaire." : "";
+    } catch (error) {
+      $("#storage-bars").replaceChildren(errorBox(error));
+    }
+  }
+
+  async function purgeTemp() {
+    const ok = await confirmDialog({
+      title: "Vider les fichiers temporaires",
+      before: "Le dossier temporaire contient des restes d'opérations (extraction d'image interrompue, etc.).",
+      after: "Son contenu est supprimé. Les images vérifiées, sauvegardes, rapports et logs ne sont pas touchés.",
+      risk: "Aucun pour le téléphone. Refusé automatiquement si une étape d'installation est en cours.",
+      question: "Supprimer le contenu du dossier temporaire ?",
+      confirmLabel: "Vider",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      const result = await api.post("/api/settings/purge-temp", { confirm: true });
+      if (result.errors) {
+        toast("Nettoyage incomplet", result.removed + " élément(s) supprimé(s), " + result.errors + " en échec (voir Logs).", "warn");
+      } else {
+        toast("Fichiers temporaires supprimés", formatBytes(result.freed_bytes) + " libéré(s).", "ok");
+      }
+    } catch (error) {
+      notifyError(error);
+    }
+    await loadStorage();
+    if ($("#purge-temp").disabled && document.activeElement === document.body) $("#storage-refresh").focus();
   }
 
   async function loadAudit() {
@@ -396,24 +646,30 @@ const LMS = (() => {
   // -------------------------------------------------------------------- init
   async function init() {
     registerView("dashboard", { title: "Dashboard", onEnter: loadEnvironment });
-    registerView("logs", {
-      title: "Logs",
-      onEnter: () => { pollLogs(); logState.timer = setInterval(pollLogs, 2000); },
-      onLeave: () => clearInterval(logState.timer),
-    });
+    registerView("logs", { title: "Logs", onEnter: startLogs, onLeave: stopLogs });
     registerView("settings", { title: "Paramètres", onEnter: loadSettings });
 
     $("#env-refresh").addEventListener("click", loadEnvironment);
     $("#log-level").addEventListener("change", resetLogs);
-    $("#log-clear").addEventListener("click", () => $("#log-view").replaceChildren());
-    $("#log-pause").addEventListener("click", (event) => {
-      logState.paused = !logState.paused;
-      event.currentTarget.textContent = logState.paused ? "Reprendre" : "Pause";
-      event.currentTarget.setAttribute("aria-pressed", String(logState.paused));
-      if (!logState.paused) pollLogs();
-    });
+    $("#log-filter").addEventListener("input", applyLogFilter);
+    $("#log-clear").addEventListener("click", () => { $("#log-view").replaceChildren(); updateLogCount(); });
+    $("#log-pause").addEventListener("click", togglePause);
+    $("#tools-refresh").addEventListener("click", loadTools);
+    $("#storage-refresh").addEventListener("click", loadStorage);
+    $("#purge-temp").addEventListener("click", purgeTemp);
     $("#audit-verify").addEventListener("click", verifyAudit);
-    $("#menu-toggle").addEventListener("click", () => $("#sidebar").classList.toggle("open"));
+    $("#menu-toggle").addEventListener("click", () => {
+      const open = !$("#sidebar").classList.contains("open");
+      setSidebar(open);
+      if (open) ($("#sidebar .nav-item.active") || $("#sidebar .nav-item"))?.focus();
+    });
+    $("#sidebar-scrim").addEventListener("click", () => setSidebar(false));
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && $("#sidebar").classList.contains("open") && $("#modal").hidden) {
+        setSidebar(false);
+        $("#menu-toggle").focus();
+      }
+    });
     window.addEventListener("hashchange", route);
 
     try {
@@ -426,5 +682,5 @@ const LMS = (() => {
   }
 
   document.addEventListener("DOMContentLoaded", init);
-  return { api, el, toast, errorBox, notifyError, registerView, confirmDialog, formatBytes, state, ApiError };
+  return { api, el, toast, errorBox, notifyError, registerView, confirmDialog, formatBytes, hbars, attachTooltip, state, ApiError };
 })();

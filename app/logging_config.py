@@ -18,6 +18,7 @@ from __future__ import annotations
 import itertools
 import logging
 import re
+import secrets
 import threading
 from collections import deque
 from dataclasses import asdict, dataclass
@@ -126,6 +127,10 @@ def _level_value(name: str) -> int:
 
 
 _memory_handler = MemoryLogHandler()
+
+# Identifies this process: in-memory log ids restart at 1 on every launch, so a
+# client resuming a stream after a restart must not reuse the old ids.
+BOOT_ID = secrets.token_hex(4)
 
 
 def get_memory_handler() -> MemoryLogHandler:

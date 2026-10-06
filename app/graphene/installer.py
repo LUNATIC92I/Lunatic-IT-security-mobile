@@ -40,9 +40,11 @@ import subprocess
 import threading
 import time
 import zipfile
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import TypeVar
 
 from app.config import HostOS, Settings
 from app.core.audit_logger import AuditLogger
@@ -58,6 +60,7 @@ from app.logging_config import get_logger, redact
 from app.models.device import Transport
 
 log = get_logger("graphene.install")
+T = TypeVar("T")
 
 STEPS = [
     ("connect", "Connecter le Pixel"),
@@ -787,6 +790,20 @@ class GrapheneInstaller:
 
     def status(self) -> dict:
         return {"session": self.session.to_dict() if self.session else None}
+
+    def run_exclusive(self, func: Callable[[], T]) -> T:
+        """Run ``func`` while no installer operation runs, blocking new ones meanwhile.
+
+        Used by the temporary-files purge: the flash workdir lives in the temp
+        directory and must never be removed under a running flash.
+        """
+        with self._lock:
+            if self.session and self.session.busy:
+                raise InstallBusyError(
+                    "Une opération d'installation utilise actuellement le dossier temporaire.",
+                    action="Attendez la fin de l'opération en cours puis réessayez.",
+                )
+            return func()
 
     def abandon(self, session_id: str) -> dict:
         session = self._session(session_id)

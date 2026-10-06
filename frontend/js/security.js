@@ -7,7 +7,7 @@
 "use strict";
 
 (() => {
-  const { api, el, errorBox, notifyError, toast, state } = LMS;
+  const { api, el, errorBox, notifyError, toast, state, hbars } = LMS;
   const $ = (selector) => document.querySelector(selector);
 
   const SEVERITY = {
@@ -35,42 +35,10 @@
 
   const deviceQuery = () => (state.selectedDeviceId ? "?device_id=" + encodeURIComponent(state.selectedDeviceId) : "");
 
-  // ------------------------------------------------------------- tooltip
-  const tooltip = $("#tooltip");
-  function attachTooltip(node, title, text) {
-    const show = (event) => {
-      tooltip.replaceChildren(el("strong", { text: title }), text);
-      tooltip.hidden = false;
-      const x = Math.min(event.clientX + 14, window.innerWidth - tooltip.offsetWidth - 8);
-      const y = Math.min(event.clientY + 14, window.innerHeight - tooltip.offsetHeight - 8);
-      tooltip.style.left = x + "px";
-      tooltip.style.top = y + "px";
-    };
-    node.addEventListener("mousemove", show);
-    node.addEventListener("mouseleave", () => { tooltip.hidden = true; });
-  }
-
   // ------------------------------------------------------------- builders
   function severityBadge(severity) {
     const s = SEVERITY[severity] || SEVERITY.info;
     return el("span", { class: "badge " + s.badge, text: s.label });
-  }
-
-  function hbars(container, rows, max, tooltipFor) {
-    if (!rows.length) {
-      container.replaceChildren(el("p", { class: "muted", text: "Aucune donnée." }));
-      return;
-    }
-    container.replaceChildren(...rows.map((row) => {
-      const fill = el("span", { class: "hbar-fill" });
-      fill.style.width = (max ? Math.max(0, Math.min(100, (row.value / max) * 100)) : 0) + "%";
-      const node = el("div", { class: "hbar-row" },
-        el("span", { class: "hbar-label", text: row.label }),
-        el("span", { class: "hbar-track" }, fill),
-        el("span", { class: "hbar-value", text: String(row.display ?? row.value) }));
-      if (tooltipFor) attachTooltip(node, row.label, tooltipFor(row));
-      return node;
-    }));
   }
 
   function findingCard(f, open = false) {

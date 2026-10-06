@@ -63,8 +63,18 @@ GrapheneOS sur les Google Pixel compatibles.
   téléphone. Une liste de vérifications manuelles couvre le reste (patch,
   bootloader, applications sensibles, administrateurs, notifications, comptes —
   types uniquement —, réseau, code de verrouillage).
-- **Logs en temps réel** dans l'interface, au format
-  `2026-10-05 17:00:02 INFO Device detected`, sans secrets ni numéros de série en clair.
+- **Logs en temps réel** dans l'interface (flux Server-Sent Events, repli
+  automatique sur un rafraîchissement toutes les 2 s), au format
+  `2026-10-05 17:00:02 INFO Device detected`, sans secrets ni numéros de série
+  en clair : filtre par niveau et par texte, pause sans perte, export `.txt`.
+- **Paramètres** : configuration effective, Android Platform Tools détectées
+  (chemin, version, compatibilité GrapheneOS), occupation disque par dossier et
+  nettoyage confirmé des fichiers temporaires (refusé pendant une étape
+  d'installation), garanties de sécurité.
+- **Interface accessible** : utilisable au clavier (lien d'évitement, focus
+  visible, focus piégé dans les fenêtres de confirmation, graphiques
+  consultables au clavier), adaptée au mobile (menu latéral avec fermeture par
+  Échap), animations désactivées si le système le demande.
 - **Journal d'audit infalsifiable** (chaîne SHA-256) avec vérification d'intégrité depuis l'interface.
 - **Erreurs compréhensibles** : chaque erreur affiche `ERREUR`, `CAUSE POSSIBLE` et `ACTION`.
 
