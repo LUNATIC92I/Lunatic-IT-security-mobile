@@ -183,3 +183,4 @@ select {
 .modal-section.risk { border: 1px solid rgba(242, 169, 59, .35); background: rgba(242, 169, 59, .07); border-radius: 8px; padding: 10px 12px; }
 .modal-section.risk .lbl { color: var(--warn); }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+a.btn { text-decoration: none; }

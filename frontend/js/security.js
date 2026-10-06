@@ -84,7 +84,7 @@
           el("div", { class: "perm-chips" }, ...f.affected.map((a) => el("span", { class: "chip", text: a }))))
         : null,
       f.hardening_action
-        ? el("div", { class: "muted small", text: "Cette correction pourra être appliquée par l'assistant de renforcement, avec votre confirmation." })
+        ? el("div", {}, el("a", { class: "btn", href: "#/hardening", text: "Corriger avec l'assistant de renforcement →" }))
         : null);
     return el("details", { class: "finding", open: open || null },
       el("summary", {},

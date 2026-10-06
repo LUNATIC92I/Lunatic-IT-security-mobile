@@ -35,6 +35,10 @@
           <svg viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Zm-1 14-4-4 1.4-1.4L11 13.2l5.6-5.6L18 9l-7 7Z"/></svg>
           Security Scan
         </a>
+        <a href="#/hardening" class="nav-item" data-view="hardening">
+          <svg viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Zm-1 6h2v5h-2V8Zm0 7h2v2h-2v-2Z"/></svg>
+          Renforcement
+        </a>
         <a href="#/applications" class="nav-item" data-view="applications">
           <svg viewBox="0 0 24 24"><path d="M4 4h6v6H4V4Zm10 0h6v6h-6V4ZM4 14h6v6H4v-6Zm10 0h6v6h-6v-6Z"/></svg>
           Applications
@@ -202,6 +206,23 @@
         </div>
       </section>
 
+      <!-- HARDENING -->
+      <section class="view" id="view-hardening" hidden>
+        <div class="card">
+          <div class="card-header">
+            <h3>Assistant de renforcement</h3>
+            <button class="btn" id="hardening-refresh">Actualiser le plan</button>
+          </div>
+          <p class="muted">Chaque correction est présentée avec la configuration actuelle, la configuration proposée et son impact. Rien n'est modifié sans votre confirmation, et chaque changement est vérifié par une nouvelle lecture sur le téléphone.</p>
+          <div id="hardening-error"></div>
+        </div>
+        <div id="hardening-actions"></div>
+        <div class="card">
+          <div class="card-header"><h3>Vérifications manuelles</h3><span class="muted small">Points qu'ADB ne permet pas de corriger automatiquement</span></div>
+          <ul class="check-list" id="hardening-checklist"></ul>
+        </div>
+      </section>
+
       <!-- APPLICATIONS -->
       <section class="view" id="view-applications" hidden>
         <div id="apps-findings"></div>
@@ -308,5 +329,6 @@
   <script src="js/app.js"></script>
   <script src="js/devices.js"></script>
   <script src="js/security.js"></script>
+  <script src="js/hardening.js"></script>
 </body>
 </html>

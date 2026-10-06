@@ -181,6 +181,7 @@ def analyze_network(section: NetworkSection, wifi: WifiStatus | None) -> list[Fi
                 evidence=f"settings global private_dns_mode = {section.private_dns_mode or 'non défini'}",
                 recommendation="Activez le DNS privé en mode automatique ou avec un fournisseur de confiance.",
                 remediation="Paramètres › Réseau et Internet › DNS privé › Automatique (ou nom d'hôte du fournisseur).",
+                hardening_action="enable_private_dns",
             )
         )
     if section.adb_over_wifi:

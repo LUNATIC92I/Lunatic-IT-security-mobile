@@ -109,3 +109,45 @@ Seules des listes blanches de propriétés et de paramètres sont conservées
 (`android_id`, nom de l'appareil, adresse Bluetooth sont écartés). Les rapports
 sauvegardés dans `<données>/reports/` (permissions 0600) ne contiennent que le
 numéro de série masqué.
+
+## Modules livrés en phase 4 — Security Hardening
+
+| Fichier | Rôle |
+|---------|------|
+| `app/security/hardening.py` | Actions (lecture de l'état, application, vérification), plan signé, liste de vérifications manuelles. |
+| `app/core/hardening_service.py` | Résolution de l'appareil, une modification à la fois, refus pendant une analyse, journal d'audit. |
+| `app/api/hardening_routes.py` | `GET /api/hardening/plan`, `POST /api/hardening/apply`. |
+| `frontend/js/hardening.js` | Vue Renforcement. |
+
+### Actions disponibles
+
+| Action | Commande (téléphone) | Vérification |
+|--------|----------------------|--------------|
+| `disable_accessibility` | `settings put secure enabled_accessibility_services <autres services>` (ou `settings delete` s'il n'en reste aucun) | relecture du paramètre |
+| `unknown_sources` | `appops set <paquet> REQUEST_INSTALL_PACKAGES deny` | `appops query-op` |
+| `unknown_sources_legacy` (Android < 8) | `settings put secure install_non_market_apps 0` | relecture |
+| `revoke_permission` | `pm revoke <paquet> <permission>` pour chaque permission accordée du groupe | `dumpsys package <paquet>` |
+| `clear_global_proxy` | `settings put global http_proxy :0` | relecture |
+| `enable_private_dns` | `settings put global private_dns_mode opportunistic` | relecture |
+| `disable_adb_wifi` | `settings put global adb_wifi_enabled 0` | relecture |
+| `enable_adb_install_verification` | `settings put global verifier_verify_adb_installs 1` | relecture |
+| `disable_usb_debugging` (toujours en dernier) | `settings put global adb_enabled 0` | disparition du téléphone de `adb devices` |
+
+Non automatisés (pas de mécanisme ADB fiable sans root, ou risque de perte de
+données) : retrait d'un administrateur de l'appareil, désinstallation
+d'applications, accès aux notifications, interrupteur des options développeur,
+code de verrouillage. Ils figurent dans les « vérifications manuelles ».
+
+### Garanties côté serveur
+1. Les commandes de modification sont marquées `mutating` dans la liste blanche :
+   le `CommandRunner` les refuse sans `confirmed=True`.
+2. Toute partie variable d'une commande doit respecter `[A-Za-z0-9._:/@+=,-]+` :
+   `adb shell` transmet la ligne au shell du téléphone, aucun métacaractère
+   n'est donc possible.
+3. `POST /api/hardening/apply` exige `confirm: true`, le jeton CSRF et le jeton
+   du plan (HMAC de l'appareil, de l'action, de la cible, de l'état AVANT et de
+   l'heure d'émission ; validité 15 minutes). L'état AVANT est relu sur le
+   téléphone : s'il diffère de celui affiché, la requête est refusée.
+4. Le résultat n'est « vérifié » qu'après une nouvelle lecture montrant la valeur
+   attendue ; sinon il est rapporté « non vérifié ».
+5. Chaque demande, réussite, échec ou non-vérification est inscrite dans l'audit.

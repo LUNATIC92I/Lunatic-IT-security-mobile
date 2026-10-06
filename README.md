@@ -4,10 +4,10 @@ Logiciel desktop (backend Python / interface HTML-CSS-JS) pour auditer la
 sécurité des smartphones Android et guider l'installation **officielle** de
 GrapheneOS sur les Google Pixel compatibles.
 
-> **État : phases 1 à 3 livrées** — architecture, journalisation, audit,
+> **État : phases 1 à 4 livrées** — architecture, journalisation, audit,
 > exécution sécurisée d'ADB/Fastboot, diagnostic de l'environnement,
-> détection des appareils et scanner de sécurité avec score. Le renforcement,
-> la sauvegarde et GrapheneOS arrivent dans les phases suivantes (voir [docs/ROADMAP.md](docs/ROADMAP.md)).
+> détection des appareils, scanner de sécurité avec score et assistant de
+> renforcement. La sauvegarde et GrapheneOS arrivent dans les phases suivantes (voir [docs/ROADMAP.md](docs/ROADMAP.md)).
 > L'interface n'affiche que ce qui fonctionne réellement.
 
 ## Sommaire
@@ -52,6 +52,16 @@ GrapheneOS sur les Google Pixel compatibles.
   téléphone, stockage, accessibilité, notifications, administrateur,
   installation d'applications, VPN), Réseau, Chiffrement, Bootloader,
   Mises à jour. Voir [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) pour le calcul du score.
+- **Renforcement** : assistant qui propose les corrections applicables au
+  téléphone connecté (désactiver un service d'accessibilité, retirer le droit
+  d'installer des applications ou une permission sensible, supprimer un proxy
+  global, activer le DNS privé, désactiver ADB sans fil, réactiver la
+  vérification des installations USB, désactiver le débogage USB en dernier).
+  Chaque action affiche **[AVANT] / [APRÈS] / [RISQUE]**, demande une
+  confirmation, est appliquée seule puis **vérifiée par relecture** sur le
+  téléphone. Une liste de vérifications manuelles couvre le reste (patch,
+  bootloader, applications sensibles, administrateurs, notifications, comptes —
+  types uniquement —, réseau, code de verrouillage).
 - **Logs en temps réel** dans l'interface, au format
   `2026-10-05 17:00:02 INFO Device detected`, sans secrets ni numéros de série en clair.
 - **Journal d'audit infalsifiable** (chaîne SHA-256) avec vérification d'intégrité depuis l'interface.

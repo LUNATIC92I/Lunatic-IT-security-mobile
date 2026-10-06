@@ -177,3 +177,20 @@ button.chip:hover { color: var(--text); border-color: #33466e; }
 button.chip.active { color: var(--text); border-color: var(--accent); background: rgba(79, 140, 255, .14); }
 .table td:first-child { min-width: 210px; }
 .reason-list { margin: 6px 0 0; padding-left: 16px; color: var(--muted); font-size: 12px; }
+
+/* ------------------------------------------------------------- Hardening */
+.harden-group { margin-bottom: 20px; }
+.harden-group > h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 10px; }
+.harden-item { display: grid; gap: 12px; }
+.harden-item .ba { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.harden-item .ba > div, .harden-item .risk { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; background: var(--bg-elev); }
+.harden-item .risk { border-color: rgba(242, 169, 59, .35); background: rgba(242, 169, 59, .07); }
+.harden-item .lbl { font-size: 11px; font-weight: 700; letter-spacing: .08em; color: var(--muted); margin-bottom: 4px; }
+.harden-item .risk .lbl { color: var(--warn); }
+.harden-item .harden-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.harden-item.done { opacity: .85; }
+.harden-result { border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+.harden-result.ok { border: 1px solid rgba(47, 191, 113, .35); background: rgba(47, 191, 113, .08); }
+.harden-result.warn { border: 1px solid rgba(242, 169, 59, .35); background: rgba(242, 169, 59, .08); }
+.danger-note { border: 1px solid rgba(239, 83, 80, .35); background: rgba(239, 83, 80, .07); border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+@media (max-width: 600px) { .harden-item .ba { grid-template-columns: 1fr; } }

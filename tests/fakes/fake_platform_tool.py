@@ -54,6 +54,54 @@ def _devices() -> dict:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
+def _state_path() -> Path | None:
+    path = os.environ.get("LMS_FAKE_DEVICES")
+    return Path(path).with_suffix(".state.json") if path else None
+
+
+def _load_state(serial: str) -> dict:
+    path = _state_path()
+    data = json.loads(path.read_text(encoding="utf-8")) if path and path.exists() else {}
+    return data.get(serial, {"global": {}, "secure": {}, "deleted": [], "install_denied": [], "revoked": {}})
+
+
+def _save_state(serial: str, state: dict) -> None:
+    path = _state_path()
+    if path is None:
+        return
+    data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    data[serial] = state
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+
+def _settings_view(scan: dict, state: dict, namespace: str) -> dict:
+    values = dict(scan.get(namespace, {}))
+    values.update(state.get(namespace, {}))
+    for key in state.get("deleted", []):
+        ns, _, name = key.partition("/")
+        if ns == namespace:
+            values.pop(name, None)
+    return values
+
+
+def _apps_with_state(scan: dict, state: dict) -> list[dict]:
+    apps = []
+    for app in scan.get("apps", []):
+        revoked = set(state.get("revoked", {}).get(app["name"], []))
+        apps.append({**app, "runtime": [p for p in app["runtime"] if p not in revoked]})
+    return apps
+
+
+ACCOUNTS_OUTPUT = """User UserInfo{0:Owner:c13}:
+  Accounts: 3
+    Account {name=jean.dupont@gmail.com, type=com.google}
+    Account {name=jean.dupont@gmail.com, type=com.whatsapp}
+    Account {name=work@corp.example, type=com.google}
+
+  Active Sessions: 0
+"""
+
+
 def _find(devices: list[dict], serial: str) -> dict | None:
     return next((d for d in devices if d["serial"] == serial), None)
 
@@ -78,13 +126,43 @@ def _adb_device_command(config: dict, serial: str, args: list[str]) -> int:
         if count > device["disconnect_after"]:
             sys.stderr.write(f"adb: device '{serial}' not found\n")
             return 1
+    state = _load_state(serial)
+    refuse = device.get("refuse_changes", False)
+    if state.get("global", {}).get("adb_enabled") == "0":
+        sys.stderr.write(f"adb: device '{serial}' not found\n")
+        return 1
     if args == ["get-state"]:
         sys.stdout.write("device\n")
     elif args == ["shell", "getprop"]:
         sys.stdout.write(getprop_output(profile))
     elif args[:3] == ["shell", "settings", "get"] and len(args) == 5:
-        values = device.get("settings", {"global/adb_enabled": "1", "global/development_settings_enabled": "1"})
-        sys.stdout.write(values.get(f"{args[3]}/{args[4]}", "null") + "\n")
+        if "settings" in device:
+            values = device["settings"]
+            sys.stdout.write(values.get(f"{args[3]}/{args[4]}", "null") + "\n")
+        else:
+            sys.stdout.write(_settings_view(scan, state, args[3]).get(args[4], "null") + "\n")
+    elif args[:3] == ["shell", "settings", "put"] and len(args) == 6:
+        if refuse:
+            sys.stdout.write("java.lang.SecurityException: Permission denial: writing to settings requires\n")
+            return 0
+        state.setdefault(args[3], {})[args[4]] = args[5]
+        if f"{args[3]}/{args[4]}" in state.get("deleted", []):
+            state["deleted"].remove(f"{args[3]}/{args[4]}")
+        _save_state(serial, state)
+    elif args[:3] == ["shell", "settings", "delete"] and len(args) == 5:
+        state.setdefault("deleted", []).append(f"{args[3]}/{args[4]}")
+        state.get(args[3], {}).pop(args[4], None)
+        _save_state(serial, state)
+    elif args[:3] == ["shell", "appops", "set"] and args[4:] == ["REQUEST_INSTALL_PACKAGES", "deny"]:
+        state.setdefault("install_denied", []).append(args[3])
+        _save_state(serial, state)
+    elif args[:3] == ["shell", "pm", "revoke"] and len(args) == 5:
+        if device.get("revoke_ignored"):
+            return 0  # simulates a change the system silently ignores
+        state.setdefault("revoked", {}).setdefault(args[3], []).append(args[4])
+        _save_state(serial, state)
+    elif args == ["shell", "dumpsys", "account"]:
+        sys.stdout.write(ACCOUNTS_OUTPUT)
     elif args == ["shell", "df", "-k", "/data"]:
         if device.get("df") == "denied":
             sys.stdout.write("df: /data: Permission denied\n")
@@ -93,18 +171,21 @@ def _adb_device_command(config: dict, serial: str, args: list[str]) -> int:
     elif args == ["shell", "dumpsys", "battery"]:
         sys.stdout.write(BATTERY_OUTPUT)
     elif args[:3] == ["shell", "settings", "list"] and len(args) == 4:
-        values = scan.get(args[3], {})
+        values = _settings_view(scan, state, args[3])
         sys.stdout.write("".join(f"{k}={v}\n" for k, v in values.items()))
     elif args == ["shell", "pm", "list", "packages", "-3"]:
         sys.stdout.write("".join(f"package:{a['name']}\n" for a in scan.get("apps", []) if not a["system"]))
     elif args == ["shell", "pm", "list", "packages", "-d"]:
         sys.stdout.write("")
     elif args == ["shell", "dumpsys", "package", "packages"]:
-        sys.stdout.write(dumpsys_packages(scan.get("apps", [])))
+        sys.stdout.write(dumpsys_packages(_apps_with_state(scan, state)))
+    elif args[:3] == ["shell", "dumpsys", "package"] and len(args) == 4:
+        apps = [a for a in _apps_with_state(scan, state) if a["name"] == args[3]]
+        sys.stdout.write("Activity Resolver Table:\n  Non-Data Actions:\n\n" + dumpsys_packages(apps))
     elif args == ["shell", "dumpsys", "device_policy"]:
         sys.stdout.write(device_policy(scan.get("admins", []), scan.get("owner")))
     elif args == ["shell", "appops", "query-op", "REQUEST_INSTALL_PACKAGES", "allow"]:
-        allowed = scan.get("install_allowed", [])
+        allowed = [p for p in scan.get("install_allowed", []) if p not in state.get("install_denied", [])]
         sys.stdout.write("".join(f"{p}\n" for p in allowed) if allowed else "No operations.\n")
     elif args == ["shell", "cmd", "wifi", "status"]:
         if device.get("no_cmd_wifi"):
@@ -134,6 +215,8 @@ def _adb(args: list[str], scenario: str) -> int:
     if args == ["devices", "-l"]:
         lines = ["List of devices attached"]
         for device in config.get("adb", []):
+            if _load_state(device["serial"]).get("global", {}).get("adb_enabled") == "0":
+                continue  # adbd stopped: the phone vanished from adb
             if device["state"] == "no permissions":
                 lines.append(
                     f"{device['serial']}       no permissions (missing udev rules? user is in the plugdev group); "

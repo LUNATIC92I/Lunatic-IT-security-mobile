@@ -250,6 +250,7 @@ def analyze_permissions(
                 recommendation="Ne laissez ce droit qu'aux applications dont vous avez réellement besoin.",
                 remediation="Paramètres › Accessibilité › (application) › désactiver. Désinstallez l'application "
                 "si vous ne la reconnaissez pas.",
+                hardening_action="disable_accessibility",
                 affected=tp_accessibility,
             )
         )
@@ -334,6 +335,7 @@ def analyze_permissions(
                 + ", ".join(sms_apps),
                 recommendation="Retirez la permission SMS aux applications qui n'en ont pas besoin.",
                 remediation="Paramètres › Sécurité et confidentialité › Gestionnaire d'autorisations › SMS.",
+                hardening_action="revoke_permission",
                 affected=sms_apps,
             )
         )
@@ -349,6 +351,7 @@ def analyze_permissions(
                 evidence="ACCESS_BACKGROUND_LOCATION accordée : " + ", ".join(bg_location),
                 recommendation="Préférez « Seulement si l'application est en cours d'utilisation ».",
                 remediation="Paramètres › Localisation › Autorisations des applications.",
+                hardening_action="revoke_permission",
                 affected=bg_location,
             )
         )
@@ -365,6 +368,7 @@ def analyze_permissions(
                 evidence="; ".join(f"{p} ({', '.join(by_package[p].granted_groups)})" for p in heavy[:10]),
                 recommendation="Retirez les permissions non indispensables à l'usage que vous en faites.",
                 remediation="Paramètres › Applications › (application) › Autorisations.",
+                hardening_action="revoke_permission",
                 affected=heavy,
             )
         )

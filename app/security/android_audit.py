@@ -277,7 +277,7 @@ def analyze_system(snapshot: DeviceSnapshot) -> list[Finding]:
                 evidence="settings secure install_non_market_apps = 1",
                 recommendation="Désactivez les sources inconnues.",
                 remediation="Paramètres › Sécurité › Sources inconnues : désactiver.",
-                hardening_action="unknown_sources",
+                hardening_action="unknown_sources_legacy",
             )
         )
     if g.get("verifier_verify_adb_installs") == "0":
@@ -291,6 +291,7 @@ def analyze_system(snapshot: DeviceSnapshot) -> list[Finding]:
                 evidence="settings global verifier_verify_adb_installs = 0",
                 recommendation="Réactivez la vérification des applications installées via USB.",
                 remediation="Options pour les développeurs › Valider les applications via USB : activer.",
+                hardening_action="enable_adb_install_verification",
             )
         )
     return findings

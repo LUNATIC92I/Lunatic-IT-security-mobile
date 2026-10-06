@@ -83,7 +83,7 @@ class SecurityScanner:
         self._latest_by_device: dict[str, str] = {}
 
     # ------------------------------------------------------------ target
-    def _resolve_adb(self, device_id: str | None) -> tuple[DeviceConnection, str]:
+    def resolve_adb(self, device_id: str | None) -> tuple[DeviceConnection, str]:
         connection, serial = self.devices.resolve(device_id)
         if connection.transport is not Transport.ADB:
             raise DeviceNotReadyError(
@@ -102,7 +102,7 @@ class SecurityScanner:
         with self._lock:
             if self._job.state == "running":
                 raise ScanInProgressError()
-        connection, serial = self._resolve_adb(device_id)
+        connection, serial = self.resolve_adb(device_id)
         with self._lock:
             if self._job.state == "running":
                 raise ScanInProgressError()
@@ -206,13 +206,13 @@ class SecurityScanner:
     def applications_section(
         self, device_id: str | None
     ) -> tuple[ApplicationsSection, PermissionsSection, list[Finding]]:
-        _connection, serial = self._resolve_adb(device_id)
+        _connection, serial = self.resolve_adb(device_id)
         snapshot = self.collector.collect(serial, frozenset({PART_APPS}))
         app_section, perm_section, findings = android_audit.build_applications(snapshot, datetime.now())
         return app_section, perm_section, findings
 
     def network_section(self, device_id: str | None) -> tuple[NetworkSection, list[Finding], list[str]]:
-        _connection, serial = self._resolve_adb(device_id)
+        _connection, serial = self.resolve_adb(device_id)
         snapshot = self.collector.collect(serial, frozenset({PART_NETWORK}))
         section = network.build_network_section(
             snapshot.global_settings, snapshot.secure_settings, snapshot.wifi, snapshot.connectivity
@@ -220,19 +220,19 @@ class SecurityScanner:
         return section, network.analyze_network(section, snapshot.wifi), snapshot.limitations
 
     def updates_section(self, device_id: str | None) -> tuple[UpdatesSection, list[Finding]]:
-        _connection, serial = self._resolve_adb(device_id)
+        _connection, serial = self.resolve_adb(device_id)
         props = self.devices.adb.get_properties(serial)
         section = updates.build_updates_section(props)
         return section, updates.analyze_updates(section)
 
     def boot_section(self, device_id: str | None) -> tuple[BootSection, list[Finding], list[str]]:
-        _connection, serial = self._resolve_adb(device_id)
+        _connection, serial = self.resolve_adb(device_id)
         snapshot = self.collector.collect(serial, frozenset({PART_CORE}))
         section = boot_security.build_boot_section(snapshot.props, snapshot.selinux, snapshot.su_path)
         return section, boot_security.analyze_boot(section, snapshot.props), snapshot.limitations
 
     def encryption_section(self, device_id: str | None) -> tuple[EncryptionSection, list[Finding]]:
-        _connection, serial = self._resolve_adb(device_id)
+        _connection, serial = self.resolve_adb(device_id)
         props = self.devices.adb.get_properties(serial)
         section = encryption.build_encryption_section(props)
         sdk = props.get("ro.build.version.sdk", "")

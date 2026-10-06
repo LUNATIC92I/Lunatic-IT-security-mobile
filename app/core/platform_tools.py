@@ -47,6 +47,9 @@ class Tool(str, Enum):
     FASTBOOT = "fastboot"
 
 
+SHELL_SAFE = re.compile(r"[A-Za-z0-9._:/@+=,-]+")
+
+
 @dataclass(frozen=True)
 class Arg:
     """Typed placeholder inside a command template."""
@@ -62,6 +65,10 @@ class Arg:
             raise InvalidInputError(detail=f"argument '{self.name}' rejected")
         if not re.fullmatch(self.pattern, value):
             raise InvalidInputError(detail=f"argument '{self.name}' does not match its allowed format")
+        # Defense in depth: "adb shell" joins its arguments into a command line run by the
+        # phone's /system/bin/sh, so no variable part may ever contain a shell metacharacter.
+        if not SHELL_SAFE.fullmatch(value):
+            raise InvalidInputError(detail=f"argument '{self.name}' contains forbidden characters")
         return value
 
 
@@ -71,7 +78,8 @@ class CommandSpec:
     tool: Tool
     template: tuple[str | Arg, ...]
     requires_serial: bool = False
-    destructive: bool = False
+    destructive: bool = False  # may erase data (flash, wipe, bootloader lock state)
+    mutating: bool = False  # changes a setting on the phone (hardening)
     timeout: float | None = None
     nonzero_is_normal: bool = False  # e.g. "which su" exits 1 when su is absent
     description: str = ""
@@ -105,6 +113,42 @@ class CommandSpec:
 
 SETTINGS_NAMESPACE = Arg("namespace", r"global|secure|system", max_length=6)
 SETTINGS_KEY = Arg("key", r"[a-z][a-z0-9_.]{0,63}", max_length=64)
+
+
+PACKAGE = Arg("package", r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+", max_length=150)
+COMPONENT_LIST = Arg(
+    "components",
+    r"[A-Za-z0-9_.]+/[A-Za-z0-9_.]+(?::[A-Za-z0-9_.]+/[A-Za-z0-9_.]+)*",
+    max_length=2000,
+)
+REVOCABLE_PERMISSIONS = (
+    "CAMERA",
+    "RECORD_AUDIO",
+    "ACCESS_FINE_LOCATION",
+    "ACCESS_COARSE_LOCATION",
+    "ACCESS_BACKGROUND_LOCATION",
+    "READ_SMS",
+    "SEND_SMS",
+    "RECEIVE_SMS",
+    "RECEIVE_MMS",
+    "RECEIVE_WAP_PUSH",
+    "READ_CONTACTS",
+    "WRITE_CONTACTS",
+    "GET_ACCOUNTS",
+    "READ_PHONE_STATE",
+    "READ_PHONE_NUMBERS",
+    "CALL_PHONE",
+    "ANSWER_PHONE_CALLS",
+    "READ_CALL_LOG",
+    "WRITE_CALL_LOG",
+    "PROCESS_OUTGOING_CALLS",
+    "READ_EXTERNAL_STORAGE",
+    "WRITE_EXTERNAL_STORAGE",
+    "READ_MEDIA_IMAGES",
+    "READ_MEDIA_VIDEO",
+    "READ_MEDIA_AUDIO",
+)
+RUNTIME_PERMISSION = Arg("permission", r"android\.permission\.(?:" + "|".join(REVOCABLE_PERMISSIONS) + ")")
 
 
 def _spec(*args, **kwargs) -> tuple[str, CommandSpec]:
@@ -236,6 +280,103 @@ COMMAND_WHITELIST: dict[str, CommandSpec] = dict(
             description="Présence d'un binaire su",
             nonzero_is_normal=True,
         ),
+        # --- hardening (phase 4): read-only helpers ---
+        _spec(
+            "adb.dumpsys_package_one",
+            Tool.ADB,
+            ("shell", "dumpsys", "package", PACKAGE),
+            requires_serial=True,
+            timeout=30,
+            description="Détail d'une application",
+        ),
+        _spec(
+            "adb.dumpsys_account",
+            Tool.ADB,
+            ("shell", "dumpsys", "account"),
+            requires_serial=True,
+            timeout=20,
+            description="Types de comptes configurés",
+        ),
+        # --- hardening (phase 4): changes, each requires confirmed=True ---
+        _spec(
+            "adb.settings_put_global_flag",
+            Tool.ADB,
+            (
+                "shell",
+                "settings",
+                "put",
+                "global",
+                Arg("key", r"adb_enabled|adb_wifi_enabled|verifier_verify_adb_installs"),
+                Arg("value", r"[01]", max_length=1),
+            ),
+            requires_serial=True,
+            mutating=True,
+            timeout=15,
+            description="Modifier un réglage de sécurité",
+        ),
+        _spec(
+            "adb.private_dns_automatic",
+            Tool.ADB,
+            ("shell", "settings", "put", "global", "private_dns_mode", "opportunistic"),
+            requires_serial=True,
+            mutating=True,
+            timeout=15,
+            description="Activer le DNS privé automatique",
+        ),
+        _spec(
+            "adb.clear_global_proxy",
+            Tool.ADB,
+            ("shell", "settings", "put", "global", "http_proxy", ":0"),
+            requires_serial=True,
+            mutating=True,
+            timeout=15,
+            description="Supprimer le proxy HTTP global",
+        ),
+        _spec(
+            "adb.disable_non_market_apps",
+            Tool.ADB,
+            ("shell", "settings", "put", "secure", "install_non_market_apps", "0"),
+            requires_serial=True,
+            mutating=True,
+            timeout=15,
+            description="Désactiver les sources inconnues (Android < 8)",
+        ),
+        _spec(
+            "adb.appops_deny_install",
+            Tool.ADB,
+            ("shell", "appops", "set", PACKAGE, "REQUEST_INSTALL_PACKAGES", "deny"),
+            requires_serial=True,
+            mutating=True,
+            timeout=15,
+            description="Retirer le droit d'installer des applications",
+        ),
+        _spec(
+            "adb.pm_revoke",
+            Tool.ADB,
+            ("shell", "pm", "revoke", PACKAGE, RUNTIME_PERMISSION),
+            requires_serial=True,
+            mutating=True,
+            timeout=15,
+            description="Retirer une permission",
+        ),
+        _spec(
+            "adb.accessibility_set",
+            Tool.ADB,
+            ("shell", "settings", "put", "secure", "enabled_accessibility_services", COMPONENT_LIST),
+            requires_serial=True,
+            mutating=True,
+            timeout=15,
+            description="Modifier les services d'accessibilité",
+        ),
+        _spec(
+            "adb.accessibility_clear",
+            Tool.ADB,
+            ("shell", "settings", "delete", "secure", "enabled_accessibility_services"),
+            requires_serial=True,
+            mutating=True,
+            timeout=15,
+            description="Désactiver tous les services d'accessibilité",
+        ),
         _spec("fastboot.version", Tool.FASTBOOT, ("--version",), timeout=15, description="Version de fastboot"),
         _spec("fastboot.devices", Tool.FASTBOOT, ("devices",), timeout=15, description="Lister les appareils Fastboot"),
         _spec(
@@ -351,6 +492,12 @@ class CommandRunner:
                 "Opération destructive non confirmée.",
                 cause="Cette opération peut effacer des données et exige une confirmation explicite.",
                 action="Relancez l'opération depuis l'assistant et confirmez-la.",
+            )
+        if spec.mutating and not confirmed:
+            raise CommandNotAllowedError(
+                "Modification non confirmée.",
+                cause="Cette commande modifie un réglage du téléphone et exige une confirmation explicite.",
+                action="Appliquez la modification depuis l'assistant de renforcement et confirmez-la.",
             )
         if serial:
             register_sensitive_value(serial)
