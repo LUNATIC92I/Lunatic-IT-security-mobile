@@ -58,3 +58,41 @@ def test_disk_space_thresholds(settings, monkeypatch):
     assert environment.check_disk_space(settings).status == "warn"
     monkeypatch.setattr(environment.shutil, "disk_usage", lambda _: usage(100, 1, 50 * 1024**3))
     assert environment.check_disk_space(settings).status == "ok"
+
+
+def test_data_dir_not_writable(settings, tmp_path):
+    blocker = tmp_path / "blocked"
+    blocker.write_text("a file where the data directory should be")
+    broken = settings.model_copy(update={"data_dir": blocker / "data"})
+    check = environment.check_data_dir(broken)
+    assert check.status == "fail" and "LMS_DATA_DIR" in check.action
+
+
+@POSIX_ONLY
+def test_old_fastboot_is_a_warning_with_instructions(settings, monkeypatch):
+    monkeypatch.setenv("LMS_FAKE_SCENARIO", "old_fastboot")
+    report = collect_environment(settings, CommandRunner(settings))
+    fastboot = next(c for c in report["checks"] if c["id"] == "fastboot")
+    assert fastboot["status"] == "warn" and "35.0.1" in fastboot["action"]
+    assert report["tools"]["fastboot"]["meets_minimum"] is False
+
+
+@POSIX_ONLY
+def test_tool_that_fails_to_run(settings, monkeypatch):
+    monkeypatch.setenv("LMS_FAKE_SCENARIO", "fail")
+    report = collect_environment(settings, CommandRunner(settings))
+    adb = next(c for c in report["checks"] if c["id"] == "adb")
+    assert adb["status"] in {"fail", "warn"} and adb["action"]
+
+
+def test_windows_and_macos_specific_checks(settings_without_tools, monkeypatch):
+    import app.config
+
+    monkeypatch.setattr(app.config, "detect_host_os", lambda *_: app.config.HostOS.WINDOWS)
+    report = collect_environment(settings_without_tools, CommandRunner(settings_without_tools))
+    ids = {c["id"] for c in report["checks"]}
+    assert "usb_driver" in ids and "udev" not in ids and "fwupd" not in ids
+    monkeypatch.setattr(app.config, "detect_host_os", lambda *_: app.config.HostOS.MACOS)
+    report = collect_environment(settings_without_tools, CommandRunner(settings_without_tools))
+    ids = {c["id"] for c in report["checks"]}
+    assert not ids & {"usb_driver", "udev", "fwupd"} and report["host"]["os"] == "macos"

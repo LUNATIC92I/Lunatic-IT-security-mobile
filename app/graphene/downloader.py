@@ -31,7 +31,7 @@ import httpx
 from app import __version__
 from app.config import HostOS, Settings
 from app.core.audit_logger import AuditLogger
-from app.core.errors import InvalidInputError, LMSError
+from app.core.errors import InvalidInputError, LMSError, LocalStorageError
 from app.core.platform_tools import OperationCancelledError
 from app.core.safety import safe_join
 from app.graphene import verifier
@@ -183,12 +183,15 @@ class DownloadManager:
         if release.size_bytes is None or not 0 < release.size_bytes <= MAX_IMAGE_BYTES:
             raise DownloadError(detail=f"unexpected image size announced by the server: {release.size_bytes}")
         paths = image_paths(self.settings, codename, release.version)
-        paths["dir"].mkdir(parents=True, exist_ok=True)
-        if self.settings.host_os is not HostOS.WINDOWS:
-            os.chmod(paths["dir"], 0o700)
-        already = paths["part"].stat().st_size if paths["part"].exists() else 0
+        try:
+            paths["dir"].mkdir(parents=True, exist_ok=True)
+            if self.settings.host_os is not HostOS.WINDOWS:
+                os.chmod(paths["dir"], 0o700)
+            already = paths["part"].stat().st_size if paths["part"].exists() else 0
+            free = shutil.disk_usage(paths["dir"]).free
+        except OSError as exc:
+            raise LocalStorageError(detail=f"{paths['dir'].parent}: {exc.strerror or type(exc).__name__}") from exc
         needed = int(release.size_bytes * EXTRACTION_FACTOR) - already
-        free = shutil.disk_usage(paths["dir"]).free
         if free < needed:
             raise NotEnoughSpaceError(detail=f"needed ~{needed / 1024**3:.1f} GB, available {free / 1024**3:.1f} GB")
         self._begin("download", codename=codename, version=release.version, channel=channel, model=release.model)

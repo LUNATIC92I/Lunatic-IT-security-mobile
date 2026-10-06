@@ -219,7 +219,7 @@ def _adb_device_command(config: dict, serial: str, args: list[str]) -> int:
     if args == ["get-state"]:
         sys.stdout.write("device\n")
     elif args == ["shell", "getprop"]:
-        sys.stdout.write(getprop_output(profile))
+        sys.stdout.write(getprop_output(profile, device.get("props")))
     elif args[:3] == ["shell", "settings", "get"] and len(args) == 5:
         if "settings" in device:
             values = device["settings"]
@@ -428,6 +428,15 @@ def _fastboot(args: list[str], scenario: str) -> int:
         if partition == device.get("flash_fail_on"):
             sys.stderr.write(
                 f"Sending '{partition}'  FAILED (remote: 'Partition flashing failed')\n"
+                "fastboot: error: Command failed\n"
+            )
+            return 1
+        if partition == device.get("unplug_on"):
+            # Cable pulled while writing: real fastboot wording, then the phone is gone.
+            state["mode"] = "off"
+            _save_state(serial, state)
+            sys.stderr.write(
+                f"Sending '{partition}' (8192 KB)  FAILED (Write to device failed (No such device))\n"
                 "fastboot: error: Command failed\n"
             )
             return 1

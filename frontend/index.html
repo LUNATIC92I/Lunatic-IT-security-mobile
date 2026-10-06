@@ -112,7 +112,7 @@
             <h2>Environnement de travail</h2>
             <p class="muted" id="env-summary">Analyse de l'ordinateur en cours…</p>
             <div class="hero-actions">
-              <button class="btn btn-primary" id="env-refresh">
+              <button type="button" class="btn btn-primary" id="env-refresh">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.7 6.3A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.8-4.2L13 11h7V4l-2.3 2.3Z"/></svg>
                 Relancer le diagnostic
               </button>
@@ -158,11 +158,11 @@
             <h3>Appareils connectés</h3>
             <div class="toolbar">
               <label class="switch"><input type="checkbox" id="devices-auto" checked> Actualisation auto</label>
-              <button class="btn" id="devices-refresh">
+              <button type="button" class="btn" id="devices-refresh">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.7 6.3A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.8-4.2L13 11h7V4l-2.3 2.3Z"/></svg>
                 Actualiser
               </button>
-              <button class="btn" id="adb-restart">Redémarrer le serveur ADB</button>
+              <button type="button" class="btn" id="adb-restart">Redémarrer le serveur ADB</button>
             </div>
           </div>
           <p class="muted" id="devices-message"></p>
@@ -184,7 +184,7 @@
             <h2 id="score-device">Analyse de sécurité</h2>
             <p class="muted" id="score-meta">Lancez une analyse pour évaluer la sécurité du téléphone connecté. Aucune modification n'est effectuée sur l'appareil.</p>
             <div class="hero-actions">
-              <button class="btn btn-primary" id="scan-start">
+              <button type="button" class="btn btn-primary" id="scan-start">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Z"/></svg>
                 Lancer l'analyse
               </button>
@@ -225,7 +225,7 @@
         <div class="card">
           <div class="card-header">
             <h3>Assistant de renforcement</h3>
-            <button class="btn" id="hardening-refresh">Actualiser le plan</button>
+            <button type="button" class="btn" id="hardening-refresh">Actualiser le plan</button>
           </div>
           <p class="muted">Chaque correction est présentée avec la configuration actuelle, la configuration proposée et son impact. Rien n'est modifié sans votre confirmation, et chaque changement est vérifié par une nouvelle lecture sur le téléphone.</p>
           <div id="hardening-error"></div>
@@ -245,7 +245,7 @@
             <h3 id="apps-title">Applications installées</h3>
             <div class="toolbar">
               <input type="search" class="input" id="apps-search" placeholder="Rechercher un paquet…" aria-label="Rechercher une application">
-              <button class="btn" id="apps-refresh">Actualiser</button>
+              <button type="button" class="btn" id="apps-refresh">Actualiser</button>
             </div>
           </div>
           <div class="toolbar chips" id="apps-filters"></div>
@@ -263,7 +263,7 @@
         <div id="perm-findings"></div>
         <div class="grid two">
           <div class="card">
-            <div class="card-header"><h3>Applications tierces par permission accordée</h3><button class="btn" id="perm-refresh">Actualiser</button></div>
+            <div class="card-header"><h3>Applications tierces par permission accordée</h3><button type="button" class="btn" id="perm-refresh">Actualiser</button></div>
             <div class="hbars" id="perm-bars"></div>
           </div>
           <div class="card">
@@ -292,7 +292,7 @@
       <section class="view" id="view-backup" hidden>
         <div class="grid two">
           <div class="card">
-            <div class="card-header"><h3>1. Données à sauvegarder</h3><button class="btn" id="backup-refresh">Actualiser</button></div>
+            <div class="card-header"><h3>1. Données à sauvegarder</h3><button type="button" class="btn" id="backup-refresh">Actualiser</button></div>
             <div id="backup-folders" class="folder-list"><p class="muted">Lecture du stockage du téléphone…</p></div>
             <label class="folder-row apk-row"><input type="checkbox" id="backup-apks"> <span>APK des applications tierces <span class="muted small" id="backup-apk-count"></span><br><span class="muted small">Pour réinstaller les applications : leurs données ne sont pas incluses.</span></span></label>
           </div>
@@ -302,7 +302,7 @@
           </div>
         </div>
         <div class="card">
-          <div class="card-header"><h3>2. Destination</h3><button class="btn" id="backup-browse-toggle">Parcourir…</button></div>
+          <div class="card-header"><h3>2. Destination</h3><button type="button" class="btn" id="backup-browse-toggle">Parcourir…</button></div>
           <div class="dest-row">
             <input class="input dest-input" id="backup-dest" spellcheck="false" aria-label="Dossier de destination">
           </div>
@@ -313,12 +313,12 @@
             <span class="muted small">Un sous-dossier daté est créé ; les empreintes SHA-256 sont calculées sur le téléphone puis vérifiées sur l'ordinateur.</span>
           </div>
           <div class="hero-actions">
-            <button class="btn btn-primary" id="backup-start">Démarrer la sauvegarde</button>
+            <button type="button" class="btn btn-primary" id="backup-start">Démarrer la sauvegarde</button>
           </div>
           <div id="backup-error"></div>
         </div>
         <div class="card" id="backup-progress" hidden>
-          <div class="card-header"><h3>Sauvegarde en cours</h3><button class="btn btn-danger" id="backup-cancel">Annuler</button></div>
+          <div class="card-header"><h3>Sauvegarde en cours</h3><button type="button" class="btn btn-danger" id="backup-cancel">Annuler</button></div>
           <div class="progress"><span id="backup-bar"></span></div>
           <p class="scan-step"><span class="pulse-dot"></span><span id="backup-step">Préparation…</span></p>
           <p class="muted small" id="backup-counters"></p>
@@ -348,7 +348,7 @@
                   <option value="alpha">Alpha</option>
                 </select>
               </label>
-              <button class="btn btn-primary" id="graphene-check">Vérifier le téléphone connecté</button>
+              <button type="button" class="btn btn-primary" id="graphene-check">Vérifier le téléphone connecté</button>
             </div>
           </div>
           <p class="muted">GrapheneOS est un système Android renforcé, disponible uniquement pour certains Google Pixel. Ce logiciel utilise exclusivement les fichiers et la procédure officiels de <code>grapheneos.org</code> ; il ne contourne jamais un verrouillage opérateur, un FRP ou un mécanisme antivol.</p>
@@ -356,7 +356,7 @@
         </div>
         <div id="graphene-release"></div>
         <div class="card" id="graphene-pipeline" hidden>
-          <div class="card-header"><h3 id="pipeline-title">Téléchargement officiel</h3><button class="btn btn-danger" id="pipeline-cancel" hidden>Annuler</button></div>
+          <div class="card-header"><h3 id="pipeline-title">Téléchargement officiel</h3><button type="button" class="btn btn-danger" id="pipeline-cancel" hidden>Annuler</button></div>
           <ol class="pipeline" id="pipeline-steps">
             <li data-step="download">Download</li>
             <li data-step="verification">Verification</li>
@@ -367,7 +367,7 @@
           <div id="pipeline-result"></div>
         </div>
         <div class="card">
-          <div class="card-header"><h3>Images GrapheneOS sur cet ordinateur</h3><button class="btn" id="images-refresh">Actualiser</button></div>
+          <div class="card-header"><h3>Images GrapheneOS sur cet ordinateur</h3><button type="button" class="btn" id="images-refresh">Actualiser</button></div>
           <div class="table-wrap">
             <table class="table">
               <thead><tr><th>Image</th><th>État</th><th>SHA-256</th><th></th></tr></thead>
@@ -395,7 +395,7 @@
           <div class="card-header">
             <h3>Assistant d'installation GrapheneOS</h3>
             <div class="toolbar">
-              <button class="btn" id="install-abandon" hidden>Abandonner</button>
+              <button type="button" class="btn" id="install-abandon" hidden>Abandonner</button>
             </div>
           </div>
           <p class="muted">Procédure officielle <code>grapheneos.org/install/cli</code>, étape par étape. Chaque étape est vérifiée par le logiciel avant de passer à la suivante ; les opérations destructives demandent une confirmation explicite et, pour le déverrouillage et le verrouillage, une validation sur le téléphone lui-même.</p>
@@ -405,7 +405,7 @@
               <label class="select-label">Canal
                 <select id="install-channel"><option value="stable">Stable</option><option value="beta">Beta</option></select>
               </label>
-              <button class="btn btn-primary" id="install-start">Démarrer l'assistant</button>
+              <button type="button" class="btn btn-primary" id="install-start">Démarrer l'assistant</button>
             </div>
           </div>
           <div id="install-error"></div>

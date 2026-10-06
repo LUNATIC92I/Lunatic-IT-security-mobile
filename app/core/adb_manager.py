@@ -32,6 +32,7 @@ KEPT_PROPERTIES = frozenset(
         "ro.build.version.sdk",
         "ro.build.version.security_patch",
         "ro.build.id",
+        "ro.build.version.incremental",
         "ro.build.display.id",
         "ro.build.type",
         "ro.build.tags",

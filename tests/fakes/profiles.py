@@ -119,8 +119,9 @@ all: Done!
 }
 
 
-def getprop_output(profile: str) -> str:
-    return "".join(f"[{key}]: [{value}]\n" for key, value in sorted(PROFILES[profile].items()))
+def getprop_output(profile: str, overrides: dict[str, str] | None = None) -> str:
+    props = {**PROFILES[profile], **(overrides or {})}
+    return "".join(f"[{key}]: [{value}]\n" for key, value in sorted(props.items()))
 
 
 # --------------------------------------------------------------------------
@@ -134,6 +135,8 @@ PROFILES["grapheneos"] = {
     "ro.build.version.release": "16",
     "ro.build.version.release_or_codename": "16",
     "ro.build.version.sdk": "36",
+    # GrapheneOS uses its release version as the build number.
+    "ro.build.version.incremental": "2026100200",
 }
 PROFILES["samsung_rooted"] = {
     **PROFILES["samsung_old"],

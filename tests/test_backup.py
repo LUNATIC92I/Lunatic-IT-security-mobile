@@ -258,3 +258,32 @@ def test_list_and_browse(backup, fake_devices, phone_storage, dest):
     assert browsed["writable"] and browsed["parent"] == str(dest.parent)
     with pytest.raises(BackupDestinationError):
         backup.browse("relative")
+
+
+@POSIX_ONLY
+def test_destination_that_is_not_a_directory(backup, fake_devices, phone_storage, dest):
+    """Works even as root (unlike the read-only test): the destination cannot hold a backup."""
+    plug(fake_devices, phone_storage)
+    not_a_dir = dest / "file.txt"
+    not_a_dir.write_text("x")
+    with pytest.raises(BackupDestinationError) as exc:
+        backup.start(None, ["DCIM"], False, str(not_a_dir))
+    assert exc.value.action
+
+
+@POSIX_ONLY
+def test_disk_full_during_backup(backup, fake_devices, phone_storage, dest, monkeypatch):
+    """A write error on the computer mid-backup: readable error, nothing half-written left behind."""
+    import errno
+
+    def disk_full(*_args, **_kwargs):
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr(bm, "sha256_file", disk_full)
+    plug(fake_devices, phone_storage)
+    status = run(backup, dest, folders=("DCIM",), apks=False)
+    assert status["state"] == "failed" and status["partial_removed"] is True
+    error = status["error"]
+    assert error["message"] == "Erreur d'écriture pendant la sauvegarde." and "Disque plein" in error["cause"]
+    assert error["detail"] == "No space left on device"
+    assert list(dest.iterdir()) == []

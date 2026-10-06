@@ -99,6 +99,34 @@ class InstallBusyError(LMSError):
     default_action = "Attendez la fin de l'opération en cours."
 
 
+# Fastboot messages printed when the USB link is lost (Linux/macOS/Windows wordings).
+USB_LOST_PATTERNS = (
+    "no such device",
+    "write to device failed",
+    "status read failed",
+    "usb_write failed",
+    "usb_read failed",
+    "remote: 'unknown command'",
+)
+
+
+def diagnose_flash_failure(log_lines: list[str]) -> str | None:
+    """Plain-language hint for the most common flash failure causes (None if unknown).
+
+    The raw Fastboot output is always shown as well: this only adds a reading aid.
+    """
+    text = "\n".join(log_lines[-40:]).lower()
+    if "waiting for any device" in text or "waiting for device" in text:
+        return "Fastboot attendait le téléphone : il n'était plus détecté (câble, port USB ou pilote)."
+    if any(pattern in text for pattern in USB_LOST_PATTERNS):
+        return "La connexion USB avec le téléphone a été perdue pendant l'écriture (câble débranché ou instable)."
+    if "remote:" in text and "failed" in text:
+        return "Le téléphone a refusé une écriture : voir le message « remote » dans la sortie Fastboot."
+    if "cannot load" in text or "no space left" in text:
+        return "Un fichier de l'image n'a pas pu être lu sur l'ordinateur (espace disque ou fichier manquant)."
+    return None
+
+
 class FlashError(LMSError):
     code = "flash_failed"
     http_status = 500
@@ -647,14 +675,20 @@ class GrapheneInstaller:
             code = process.wait(timeout=60)
             timer.cancel()
             if timed_out.is_set():
+                diagnosis = diagnose_flash_failure(session.flash_log)
                 raise FlashError(
                     cause=f"Délai maximal de {self.settings.flash_timeout:.0f} s dépassé : le flashage a "
-                    "été interrompu.",
+                    "été interrompu." + (f" {diagnosis}" if diagnosis else ""),
                     detail="\n".join(session.flash_log[-15:]),
                 )
             if code != 0:
                 tail = "\n".join(session.flash_log[-15:])
-                raise FlashError(cause=f"Le script officiel s'est terminé avec le code {code}.", detail=tail)
+                diagnosis = diagnose_flash_failure(session.flash_log)
+                raise FlashError(
+                    cause=f"Le script officiel s'est terminé avec le code {code}."
+                    + (f" {diagnosis}" if diagnosis else ""),
+                    detail=tail,
+                )
             session.flash_ok = True
             session.flash_progress = 100
             outcome = ("done", "Script officiel terminé sans erreur")
@@ -773,6 +807,10 @@ class GrapheneInstaller:
                 problems.append(f"bootloader verrouillé = {locked} (attendu : 1)")
             if props.get("ro.product.device") != session.codename:
                 problems.append("modèle inattendu")
+            # GrapheneOS uses its release version as build number (ro.build.version.incremental).
+            installed = props.get("ro.build.version.incremental")
+            if installed and session.version and installed != session.version:
+                problems.append(f"version installée {installed} (attendue : {session.version})")
             if problems:
                 raise InstallStateError(
                     "L'état de sécurité après installation n'est pas celui attendu.", cause="; ".join(problems)

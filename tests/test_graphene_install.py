@@ -334,3 +334,94 @@ def test_image_swapped_between_preflight_and_flash(graphene, fake_devices, setti
     assert "a changé depuis sa vérification" in next(s for s in session["steps"] if s["id"] == "flash")["detail"]
     state_file = tmp_path / "fake-devices.state.json"
     assert "flashed" not in json.loads(state_file.read_text())[SERIAL]  # nothing sent to the phone
+
+
+def _flash_and_fail(graphene, sid):
+    inst = graphene.installer
+    assert inst.preflight(sid)["ready_to_install"]
+    inst.flash(sid)
+    inst.wait(60)
+    return inst.status()["session"]
+
+
+def test_cable_pulled_during_flash(graphene, fake_devices):
+    """Interruption during the flash: real Fastboot error shown, plain-language cause, lock refused."""
+    sid = ready_session(graphene, fake_devices, unplug_on="super")
+    session = _flash_and_fail(graphene, sid)
+    assert steps(session)["flash"] == "failed" and not session["flash_ok"]
+    log = "\n".join(session["flash_log"])
+    assert "FAILED (Write to device failed (No such device))" in log  # raw Fastboot error, never hidden
+    detail = next(s for s in session["steps"] if s["id"] == "flash")["detail"]
+    assert "connexion USB" in detail and "perdue" in detail
+    with pytest.raises(InstallStateError):
+        graphene.installer.lock_bootloader(sid)
+    # The phone is gone: a new preflight explains it instead of allowing a flash.
+    session = graphene.installer.preflight(sid)
+    assert not session["ready_to_install"]
+    assert "Fastboot mode" in [c["label"] for c in session["preflight"] if not c["ok"]]
+
+
+def test_flash_failure_diagnosis_wordings():
+    from app.graphene.installer import diagnose_flash_failure
+
+    assert "plus détecté" in diagnose_flash_failure(["< waiting for any device >"])
+    assert "USB" in diagnose_flash_failure(["ERROR: usb_write failed with status e00002ed"])
+    assert "refusé" in diagnose_flash_failure(["Writing 'boot' FAILED (remote: 'Partition flashing failed')"])
+    assert diagnose_flash_failure(["Finished. Total time: 1s"]) is None
+
+
+def test_wrong_version_detected_after_install(graphene, fake_devices):
+    sid = ready_session(graphene, fake_devices, adb_after_reboot=True)
+    inst = graphene.installer
+    inst.preflight(sid)
+    inst.flash(sid)
+    inst.wait(60)
+    inst.verify_result(sid)
+    inst.lock_bootloader(sid)
+    inst.reboot(sid)
+    fake_devices(
+        adb=[
+            {
+                "serial": SERIAL,
+                "state": "device",
+                "profile": "grapheneos",
+                "props": {"ro.build.version.incremental": "2025010100"},
+            }
+        ]
+    )
+    with pytest.raises(InstallStateError) as exc:
+        inst.post_check(sid)
+    assert "version installée 2025010100" in exc.value.cause and VERSION in exc.value.cause
+    assert steps(inst.status()["session"])["post_check"] == "failed"
+
+
+def test_fastboot_unavailable_blocks_installation(graphene, fake_devices, settings, monkeypatch):
+    """Fastboot missing: tool check fails with an actionable message, nothing is sent to the phone."""
+    plug(fake_devices)
+    download(graphene)
+    inst = graphene.installer
+    session = inst.start(None, "stable")
+    inst.confirm(session["id"], session["confirmation_phrase"], True, True)
+    (settings.platform_tools_dir / "fastboot").unlink()
+    monkeypatch.setenv("PATH", "/nonexistent")
+    with pytest.raises(LMSError) as exc:
+        inst.check_tools(session["id"])
+    assert exc.value.action and "fastboot" in (exc.value.message + exc.value.cause).lower()
+    assert steps(inst.status()["session"])["tools"] == "failed"
+    with pytest.raises(InstallStateError):
+        inst.reboot_to_bootloader(session["id"])
+
+
+def test_unauthorized_phone_cannot_start_installation(graphene, fake_devices):
+    fake_devices(adb=[{"serial": SERIAL, "state": "unauthorized"}])
+    with pytest.raises(LMSError) as exc:
+        graphene.installer.start(None, "stable")
+    assert exc.value.action
+    assert graphene.installer.status()["session"] is None
+
+
+def test_insufficient_usb_permissions_cannot_start_installation(graphene, fake_devices):
+    fake_devices(fastboot=[{"serial": SERIAL, "state": "no permissions"}])
+    with pytest.raises(LMSError) as exc:
+        graphene.installer.start(None, "stable")
+    assert "udev" in (exc.value.cause + exc.value.action).lower() or "permission" in exc.value.message.lower()

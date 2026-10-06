@@ -11,7 +11,7 @@
 | 7 | Téléchargement officiel avec reprise + vérification cryptographique (signature SSHSIG GrapheneOS, SHA-256/512, archive) | ✅ Livrée |
 | 8 | Assistant d'installation en 13 étapes : confirmation, préparation officielle, contrôles préalables, script officiel flash-all, verrouillage, vérification | ✅ Livrée |
 | 9 | Frontend complet : logs en temps réel (SSE), Paramètres (outils, stockage, nettoyage), passe accessibilité et mobile sur toutes les vues | ✅ Livrée |
-| 10 | Tests (scénarios unauthorized/offline/multi-appareils, interruption…) | À faire |
+| 10 | Tests : matrice des scénarios de bout en bout par l'API, débranchement pendant le flash, version installée vérifiée, contrôles statiques de l'interface, couverture ≥ 90 %, tests optionnels sur les vraies platform-tools | ✅ Livrée |
 | 11 | Documentation complète | À faire |
 | 12 | Packaging | À faire |
 

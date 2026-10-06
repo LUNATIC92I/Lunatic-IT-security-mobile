@@ -318,8 +318,16 @@ session change à chaque lancement).
 ```bash
 ./install.sh --dev
 .venv/bin/python -m pytest          # aucun téléphone requis
+.venv/bin/python -m pytest --cov    # avec couverture (seuil : 90 %)
 .venv/bin/ruff check . && .venv/bin/ruff format --check .
 ```
+
+La matrice des scénarios du cahier des charges (non autorisé, hors ligne,
+plusieurs appareils, Pixel compatible / incompatible, téléchargement, somme de
+contrôle, fichier corrompu, Fastboot indisponible, interruption pendant le
+téléchargement ou le flashage, mauvaise version, permissions insuffisantes)
+est rejouée de bout en bout par l'API dans `tests/test_scenarios.py` ; le
+détail est dans [docs/TESTING.md](docs/TESTING.md).
 
 Les tests installent de **faux `adb`/`fastboot` exécutables**
 (`tests/fakes/fake_platform_tool.py`) pour exercer le vrai chemin `subprocess`

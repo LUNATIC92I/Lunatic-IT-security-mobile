@@ -89,6 +89,17 @@ class ToolExecutionError(LMSError):
     default_action = "Consultez le détail technique et l'onglet Logs."
 
 
+class LocalStorageError(LMSError):
+    code = "local_storage_error"
+    http_status = 507
+    default_message = "Impossible d'écrire dans le dossier de données de l'application."
+    default_cause = "Permissions insuffisantes sur le dossier, disque plein ou chemin occupé par un fichier."
+    default_action = (
+        "Vérifiez que le dossier indiqué existe, qu'il vous appartient et qu'il reste de l'espace libre, "
+        "ou choisissez un autre dossier avec LMS_DATA_DIR."
+    )
+
+
 class PathSecurityError(LMSError):
     code = "path_rejected"
     http_status = 400

@@ -9,3 +9,5 @@ dist/
 .env
 data/
 *.log
+.coverage
+htmlcov/
