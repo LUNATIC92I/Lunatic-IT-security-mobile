@@ -12,7 +12,7 @@
 | 8 | Assistant d'installation en 13 étapes : confirmation, préparation officielle, contrôles préalables, script officiel flash-all, verrouillage, vérification | ✅ Livrée |
 | 9 | Frontend complet : logs en temps réel (SSE), Paramètres (outils, stockage, nettoyage), passe accessibilité et mobile sur toutes les vues | ✅ Livrée |
 | 10 | Tests : matrice des scénarios de bout en bout par l'API, débranchement pendant le flash, version installée vérifiée, contrôles statiques de l'interface, couverture ≥ 90 %, tests optionnels sur les vraies platform-tools | ✅ Livrée |
-| 11 | Documentation complète | À faire |
+| 11 | README complet : présentation, architecture, prérequis, installation, Platform Tools, lancement, configuration, utilisation page par page, Security Scan (score), Renforcement, Backup, GrapheneOS (13 étapes), avertissements, dépannage par symptôme, tests, développement (règles, API), sécurité | ✅ Livrée |
 | 12 | Packaging | À faire |
 
 Les modules d'une phase ne sont créés qu'au moment où ils sont réellement
