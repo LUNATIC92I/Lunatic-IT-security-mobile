@@ -127,10 +127,17 @@ def getprop_output(profile: str, overrides: dict[str, str] | None = None) -> str
 # --------------------------------------------------------------------------
 # Security audit outputs (phase 3)
 # --------------------------------------------------------------------------
+def _recent_patch(days: int = 10) -> str:
+    """A security patch a few days old, relative to today, so the fake never "ages"."""
+    from datetime import date, timedelta
+
+    return (date.today() - timedelta(days=days)).isoformat()
+
+
 PROFILES["grapheneos"] = {
     **PROFILES["pixel8pro_stock"],
-    "ro.build.version.security_patch": "2026-09-05",
-    "ro.vendor.build.security_patch": "2026-09-05",
+    "ro.build.version.security_patch": _recent_patch(),
+    "ro.vendor.build.security_patch": _recent_patch(),
     "ro.boot.verifiedbootstate": "yellow",
     "ro.build.version.release": "16",
     "ro.build.version.release_or_codename": "16",
